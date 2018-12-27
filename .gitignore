@@ -1,0 +1,11 @@
+preregistration_old.Rmd
+*.docx
+*.DS_Store
+*.tmp
+*.Rproj
+*.Rproj.user
+*.Rhistory
+*.history
+*.RData
+*.zip
+*.dcf
