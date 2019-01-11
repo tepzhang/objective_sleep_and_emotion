@@ -1,4 +1,5 @@
 preregistration_old.Rmd
+.gitignore
 *.docx
 *.DS_Store
 *.tmp
