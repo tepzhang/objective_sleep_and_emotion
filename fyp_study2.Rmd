@@ -1,0 +1,133 @@
+---
+title: "fyp_study2"
+author: "Jinxiao Zhang"
+date: "January 25, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r participant list}
+# (server must be mounted with appropriate file path)
+bp_path <- "Z:/SBER/SBER1_physio_R56/data/Full_Study/byparticipant_data"
+(bp_files <- list.files(bp_path))
+
+# for FYP purpose
+# authenticate
+gs_auth()
+gs_ls()
+# import from Google Sheet
+ss = gs_title("Study Quality Control: Data Checking")
+gs_data_check <- gs_read(ss, ws = 2, range = cell_rows(3:107))
+pids <- gs_data_check$`Participant ID`
+```
+
+```{r import raw task data}
+# create the list of csv files of ER task
+ercsvs <- character(0)
+list_noS2 <- c() # list of participants who had no S2 .csv files
+for(pid in pids){
+  # create list of session 2 csvs
+  s2path <- sprintf("%s/%s/session2", bp_path, pid)
+  s2ls <- list.files(s2path, recursive = T, full.names = T)
+  fn <- s2ls[c(grep("InstructedER_[0-9]{4}.*csv$", s2ls), 
+               #grep("Instructed_ER_Task.*csv$", s2ls), 
+               grep("Instructed_ER.*csv$", s2ls))]
+  if(length(fn) > 0){
+    #print(c(pid, length(fn)))
+    ercsvs <- append(ercsvs, fn)
+  }else{
+    list_noS2 = append(list_noS2, pid)
+  }
+}
+# sort the No_session2 list
+list_noS2 <- sort(list_noS2)
+# check the files in the No_session2 list
+for(pid in list_noS2){
+  # create list of session 2 csvs
+  s2path <- sprintf("%s/%s/session2", bp_path, pid)
+  s2ls <- list.files(s2path, recursive = T, full.names = T)
+  # print the ID and the number of files in the "session2" folder
+  print(c(pid,length(s2ls)))
+}
+# 1275 - copy (2 identical files) --> remove the copy
+# 1574 - pt1, pt2 (2 files both only had 38 rows)
+# 5767 - 2 files created at different time
+# 1754 - 2 files created at different time
+# 1016 - V1, V2, V3 (V1 and V2 are empty files though)
+# 1023 - files in a subfolder "Random Files and test data" --> remove the files in the subfolder
+# 3538 - 2 files created at different time
+
+# remove the wrong files
+ercsvs <- ercsvs[c(-grep("copy", ercsvs), # contain "copy"
+                   -grep("Random Files", ercsvs))] # in the "Random Files" folder
+
+
+
+
+#import the raw data
+agg_df_raw <- mutate_all(read.csv(ercsvs[1]), as.character) #aggregated raw data
+for(i in 2:length(ercsvs)){
+  # aggregate all csvs into 1 dataframe
+  agg_df_raw <- bind_rows(agg_df_raw, mutate_all(read.csv(ercsvs[i]), as.character))
+}
+
+```
+
+```{r fatigue and focus in task}
+
+########## check the fatigue/quality rating in task #########
+
+#get the block-wise rating data
+fatigue_quality_rating <- agg_df_raw %>% 
+  group_by(participant) %>% 
+  filter(imageFile == "") %>% 
+  select(participant, 
+         Fatigue.response, 
+         Data_Quality.response, 
+         Watch_Quality.response,
+         Distract_Quality.response,
+         Reappraise_Quality.response) %>% 
+  filter(row_number()!= 1) # remove the trial before the first block
+
+# summarize each participant block rating
+fatigue_quality_summary <- fatigue_quality_rating %>% 
+  mutate(fatigue = as.numeric(Fatigue.response),
+         focus = as.numeric(Data_Quality.response),
+         watch_quality = as.numeric(Watch_Quality.response),
+         distract_quality = as.numeric(Distract_Quality.response),
+         reappraise_quality = as.numeric(Reappraise_Quality.response)) %>% 
+  group_by(participant) %>% 
+  summarise(fatigue = mean(fatigue, na.rm = T),
+            focus = mean(focus, na.rm = T),
+            watch_quality = mean(watch_quality, na.rm = T),
+            distract_quality = mean(distract_quality, na.rm = T),
+            reappraise_quality = mean(reappraise_quality, na.rm = T),
+            n = n()) %>% 
+  gather(rating_type, score, fatigue:reappraise_quality)
+
+# add levels of rating types
+fatigue_quality_summary$rating_type <- factor(fatigue_quality_summary$rating_type,
+                                              levels = c("fatigue",
+                                                         "focus",
+                                                         "watch_quality",
+                                                         "distract_quality",
+                                                         "reappraise_quality"))
+
+# plot the distribution
+ggplot(fatigue_quality_summary, aes(x = score))+
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~rating_type, ncol = 3)
+
+
+```
+
+```{r save workspace}
+save.image('C:/Users/tepzh/Dropbox/Stanford/FYP/fyp_study2/data/workspace_fyp_study2.Rdata')
+
+```
+
+

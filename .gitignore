@@ -10,3 +10,5 @@ preregistration_old.Rmd
 *.RData
 *.zip
 *.dcf
+.httr-oauth
+.Rproj.user
