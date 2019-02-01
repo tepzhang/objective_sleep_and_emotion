@@ -90,15 +90,53 @@ fatigue_quality_rating <- agg_df_raw %>%
          Watch_Quality.response,
          Distract_Quality.response,
          Reappraise_Quality.response) %>% 
-  filter(row_number()!= 1) # remove the trial before the first block
-
-# summarize each participant block rating
-fatigue_quality_summary <- fatigue_quality_rating %>% 
+  filter(row_number()!= 1) %>% # remove the trial before the first block
   mutate(fatigue = as.numeric(Fatigue.response),
          focus = as.numeric(Data_Quality.response),
          watch_quality = as.numeric(Watch_Quality.response),
          distract_quality = as.numeric(Distract_Quality.response),
-         reappraise_quality = as.numeric(Reappraise_Quality.response)) %>% 
+         reappraise_quality = as.numeric(Reappraise_Quality.response),
+         block = row_number()) %>% 
+  filter(block <= 5)
+
+# plot of ratings by block
+# fatigue
+p_fatigue <- ggplot(fatigue_quality_rating, aes(fatigue))+
+  geom_histogram(colour="black", fill="white")+
+  #geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~block, ncol = 5)+
+  labs(title = "fatigue rating by block")
+p_focus <- ggplot(fatigue_quality_rating, aes(focus))+
+  geom_histogram(colour="black", fill="white")+
+  #geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~block, ncol = 5)+
+  labs(title = "focus rating by block")
+p_watch <- ggplot(fatigue_quality_rating, aes(watch_quality))+
+  geom_histogram(colour="black", fill="white")+
+  #geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~block, ncol = 5)+
+  labs(title = "watch rating by block")
+p_distract <- ggplot(fatigue_quality_rating, aes(distract_quality))+
+  geom_histogram(colour="black", fill="white")+
+  #geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~block, ncol = 5)+
+  labs(title = "distract rating by block")
+p_reappraise <- ggplot(fatigue_quality_rating, aes(reappraise_quality))+
+  geom_histogram(colour="black", fill="white")+
+  #geom_density(alpha=.2, fill="red") +
+  facet_wrap(.~block, ncol = 5)+
+  labs(title = "reappraise rating by block")
+
+library(gridExtra)
+grid.arrange(p_fatigue, 
+             p_focus, 
+             p_watch,
+             p_distract,
+             p_reappraise,
+             ncol=1)
+
+# summarize each participant block ratings
+fatigue_quality_summary <- fatigue_quality_rating %>% 
   group_by(participant) %>% 
   summarise(fatigue = mean(fatigue, na.rm = T),
             focus = mean(focus, na.rm = T),
@@ -122,7 +160,39 @@ ggplot(fatigue_quality_summary, aes(x = score))+
   geom_density(alpha=.2, fill="red") +
   facet_wrap(.~rating_type, ncol = 3)
 
+ggplot(fatigue_quality_summary, aes(x = score))+
+  geom_histogram(aes(), colour="black", fill="white")+
+  facet_wrap(.~rating_type, ncol = 3)
 
+```
+
+```{r PSG data processing}
+#report path: Z:\SBER\SBER1_physio_R56\SBER_sleepreports_LindaClete\Scored\11.13.18\ScoredPsgs_Reports\09.27.18
+#hynogram export path: Z:\SBER\SBER1_physio_R56\data\brux_scored\raw_exports
+
+# read the hypnogram data of one participant
+psg_2227 <- read.csv("data/2227_hypno.txt")
+# filter the data to the sleep window
+psg_2227_processed <- psg_2227 %>% 
+  rename("stage" = "X.") %>% 
+  filter(stage != "?")
+
+psg_2227_summary <- psg_2227_processed %>% 
+  group_by(stage) %>% 
+  summarize(duration = n()/2) %>% # each epoch is 30 sec; duration is in minutes
+  spread(stage, duration) %>% 
+  mutate(total_sleep = W + N1 + N2 + N3 + R,
+         N1_perc = N1/total_sleep,
+         N2_perc = N2/total_sleep,
+         N3_perc = N3/total_sleep,
+         R_perc = R/total_sleep,
+         W_perc = W/total_sleep)
+
+
+library(DT)
+datatable(psg_2227_summary)
+
+plot(seq(1, length(psg_2227_processed$stage)), psg_2227_processed$stage)
 ```
 
 ```{r save workspace}

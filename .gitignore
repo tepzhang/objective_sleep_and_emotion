@@ -12,3 +12,9 @@ preregistration_old.Rmd
 *.dcf
 .httr-oauth
 .Rproj.user
+
+*.png
+*.bmp
+
+data/
+paper examples/
