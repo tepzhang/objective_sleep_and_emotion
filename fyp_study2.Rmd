@@ -169,6 +169,7 @@ ggplot(fatigue_quality_summary, aes(x = score))+
   geom_histogram(aes(), colour="black", fill="white")+
   facet_wrap(.~rating_type, ncol = 3)
 
+
 ```
 
 ```{r PSG data processing}
