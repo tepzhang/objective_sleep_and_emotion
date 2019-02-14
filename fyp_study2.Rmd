@@ -10,10 +10,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r load library}
-library(gridExtra)
+# library(gridExtra)
+library(cowplot)
 library("kableExtra") # for making nice tables
 library(tidyverse)
 ```
+
+```{r set theme}
+theme_set(theme_classic() ) #set the theme
+```
+
 
 ```{r participant list}
 # (server must be mounted with appropriate file path)
@@ -172,6 +178,17 @@ ggplot(fatigue_quality_summary, aes(x = score))+
 
 ```
 
+```{r check psg files}
+linda_folder <- "Z:/SBER/SBER1_physio_R56/SBER_sleepreports_LindaClete/Scored/11.13.18"
+destination_folder <- "Z:/SBER/SBER1_physio_R56/data/brux_scored"
+# destination_folder <- "/Volumes/gls$/SBER/SBER1_physio_R56/data/brux_scored"
+
+dir_list_scored <- list.dirs(destination_folder)
+sleep_dirs <- grep("[0-9]{4}_BP\\.SLP$", dir_list_scored, value = T)
+
+```
+
+
 ```{r PSG data processing}
 #report path: Z:\SBER\SBER1_physio_R56\SBER_sleepreports_LindaClete\Scored\11.13.18\ScoredPsgs_Reports\09.27.18
 #hynogram export path: Z:\SBER\SBER1_physio_R56\data\brux_scored\raw_exports
@@ -270,19 +287,20 @@ for (j in 1:length(psg_pids)){
     group_by(stage) %>% 
     summarise(duration = n()/2) %>% 
     spread(stage, duration)
+  
   # wake during sleep period
-  psg_wake = psg_sleep$W[1]
+  psg_wake = ifelse(is.null(psg_sleep$W[1]), 0, psg_sleep$W[1])
   # N1 sleep
-  psg_n1 = psg_sleep$N1[1]
+  psg_n1 = ifelse(is.null(psg_sleep$N1[1]), 0, psg_sleep$N1[1])
   psg_n1_perc = psg_n1/psg_tst
   # N2 sleep
-  psg_n2 = psg_sleep$N2[1] 
+  psg_n2 = ifelse(is.null(psg_sleep$N2[1]), 0, psg_sleep$N2[1])
   psg_n2_perc = psg_n2/psg_tst
   # N3 sleep
-  psg_n3 = psg_sleep$N3[1]
+  psg_n3 = ifelse(is.null(psg_sleep$N3[1]), 0, psg_sleep$N3[1])
   psg_n3_perc = psg_n3/psg_tst
   # REM sleep
-  psg_rem = psg_sleep$R[1]
+  psg_rem = ifelse(is.null(psg_sleep$R[1]), 0, psg_sleep$R[1])
   psg_rem_perc = psg_rem/psg_tst
   
   # contrust the PSG summary for one participant
@@ -311,6 +329,7 @@ for (i in 1:nrow(df.psg_summary)){
     df.psg_summary[i, 2:17] <- NA # assign NA to all summary statistics except the pid
   }
 }
+df.psg_summary$pid <- as.character(df.psg_summary$pid)
 
 # mark the labels for stage
 df.psg$stage <- factor(df.psg$stage, 
@@ -323,6 +342,87 @@ df.psg$stage <- factor(df.psg$stage,
 
 kable(df.psg_summary, digit = 3)
 ```
+
+```{r visualize PSG data}
+p_hist1 <- hist(df.psg_summary$psg_tib, main = "PSG time in bed")
+p_hist2 <- hist(df.psg_summary$psg_tst, main = "PSG total sleep time")
+p_hist3 <- hist(df.psg_summary$psg_n3, main = "PSG SWS time")
+p_hist4 <- hist(df.psg_summary$psg_rem, main = "PSG REM sleep time")
+
+# ????????
+grid.arrange(list(p_hist1,
+             p_hist2,
+             p_hist3,
+             p_hist4))
+
+# REM and SWS
+ggplot(df.psg_summary,
+       aes(psg_rem, psg_n3))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM ~ SWS (min)")
+
+ggplot(df.psg_summary,
+       aes(psg_rem_perc, psg_n3_perc))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM ~ SWS (%)")
+
+
+## REM sleep
+p_rem1 <- ggplot(df.er_psg,
+       aes(psg_rem, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM and reactivity (all cases)")
+
+p_rem2 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+       aes(psg_rem, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM and reactivity (REM>0)")
+
+
+## SWS
+p_sws1 <- ggplot(df.er_psg ,
+       aes(psg_n3, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "SWS and reactivity (all cases)")
+
+p_sws2 <- ggplot(df.er_psg %>% filter(psg_n3 > 0),
+       aes(psg_n3, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "SWS and reactivity (SWS>0)")
+
+plot_grid(p_rem1, p_rem2, p_sws1, p_sws2, col =2)
+
+
+# TST (total sleep time)
+ggplot(df.er_psg,
+       aes(psg_tst, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "Total sleep time and reactivity (all cases)")
+
+ggplot(df.er_psg %>% filter(psg_tst > 0),
+       aes(psg_tst, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "Total sleep time and reactivity (TST>0)")
+```
+
+```{r analysis: PSG and ER}
+glimpse(df.psg_summary)
+glimpse(df.ER_ind_wide)
+
+
+df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
+                       by = c("participant" = "pid"))
+
+```
+
 
 ```{r save workspace}
 save.image('C:/Users/tepzh/Dropbox/Stanford/FYP/fyp_study2/data/workspace_fyp_study2.Rdata')
