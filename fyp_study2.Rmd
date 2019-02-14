@@ -139,7 +139,7 @@ p_reappraise <- ggplot(fatigue_quality_rating, aes(reappraise_quality))+
   facet_wrap(.~block, ncol = 5)+
   labs(title = "reappraise rating by block")
 
-grid.arrange(p_fatigue, 
+plot_grid(p_fatigue, 
              p_focus, 
              p_watch,
              p_distract,
@@ -204,7 +204,7 @@ psg_pids <-  str_sub(psg_txt_files,
                      str_length(psg_txt_files)-10)
 
 
-##### read files and calculate the sleep staging information ######
+#### read files and calculate the sleep staging information #####
 # the raw psg data fram
 df.psg <- data.frame()
 # the data frame of psg summary report
@@ -223,7 +223,7 @@ for (j in 1:length(psg_pids)){
   
   
   
-  ####### calculate the PSG report for each participant #######
+  #### calculate the PSG report for each participant #######
   # time point of lights out
   time_light_out = 1
   for (i in 1:nrow(psg)){
@@ -340,36 +340,37 @@ df.psg$stage <- factor(df.psg$stage,
 # ggplot(df.psg %>% filter(pid == "2227"), aes(time, stage))+
 #   geom_point(alpha = .5, size = 1)
 
-kable(df.psg_summary, digit = 3)
+# kable(df.psg_summary, digit = 3)
+
+# write the psg dataset
+write_csv(df.psg_summary, "Z:/SBER/SBER1_physio_R56/data/Full_Study/psg_data/psg_summary.csv")
 ```
 
-```{r visualize PSG data}
-p_hist1 <- hist(df.psg_summary$psg_tib, main = "PSG time in bed")
-p_hist2 <- hist(df.psg_summary$psg_tst, main = "PSG total sleep time")
-p_hist3 <- hist(df.psg_summary$psg_n3, main = "PSG SWS time")
-p_hist4 <- hist(df.psg_summary$psg_rem, main = "PSG REM sleep time")
-
-# ????????
-grid.arrange(list(p_hist1,
-             p_hist2,
-             p_hist3,
-             p_hist4))
+```{r visualization 1 PSG}
+hist(df.psg_summary$psg_tib, main = "PSG time in bed")
+hist(df.psg_summary$psg_tst, main = "PSG total sleep time")
+hist(df.psg_summary$psg_n3, main = "PSG SWS time")
+hist(df.psg_summary$psg_rem, main = "PSG REM sleep time")
+hist(df.psg_summary$psg_n3_perc, main = "PSG SWS percentage")
+hist(df.psg_summary$psg_rem_perc, main = "PSG REM percentage")
 
 # REM and SWS
-ggplot(df.psg_summary,
+p_psg1 <- ggplot(df.psg_summary,
        aes(psg_rem, psg_n3))+
   geom_point(alpha = .5)+
   geom_smooth(method = "lm")+
   labs(title = "REM ~ SWS (min)")
 
-ggplot(df.psg_summary,
+p_psg2 <- ggplot(df.psg_summary,
        aes(psg_rem_perc, psg_n3_perc))+
   geom_point(alpha = .5)+
   geom_smooth(method = "lm")+
   labs(title = "REM ~ SWS (%)")
 
 
-## REM sleep
+```
+```{r visualization 2 REM}
+#### REM and reactivity ####
 p_rem1 <- ggplot(df.er_psg,
        aes(psg_rem, watch_val_rating, color = intensity))+
   geom_point(alpha = .4)+
@@ -382,8 +383,40 @@ p_rem2 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
   geom_smooth(method = "lm")+
   labs(title = "REM and reactivity (REM>0)")
 
+p_rem3 <- ggplot(df.er_psg,
+       aes(psg_rem_perc, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM% and reactivity (all cases)")
 
-## SWS
+p_rem4 <- ggplot(df.er_psg %>% filter(psg_rem_perc > 0),
+       aes(psg_rem_perc, watch_val_rating, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM% and reactivity (REM>0)")
+
+plot_grid(p_rem1, p_rem2, p_rem3, p_rem4, ncol = 2)
+ggsave("rem-reactivity correlation.pdf", width = 12, height = 9)
+
+#### REM and regulation ####
+p_rem5 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+       aes(psg_rem, reappraise_val_change, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM and reappraisal (REM > 0)")
+
+p_rem6 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+       aes(psg_rem, distract_val_change, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM and distraction (REM > 0)")
+
+plot_grid(p_rem5, p_rem6)
+ggsave("rem-regulation correlation.pdf", width = 12, height = 5)
+```
+
+```{r visualization 3 SWS}
+## SWS ##
 p_sws1 <- ggplot(df.er_psg ,
        aes(psg_n3, watch_val_rating, color = intensity))+
   geom_point(alpha = .4)+
@@ -396,31 +429,50 @@ p_sws2 <- ggplot(df.er_psg %>% filter(psg_n3 > 0),
   geom_smooth(method = "lm")+
   labs(title = "SWS and reactivity (SWS>0)")
 
-plot_grid(p_rem1, p_rem2, p_sws1, p_sws2, col =2)
 
+```
 
+```{r visualization 4 TST}
 # TST (total sleep time)
-ggplot(df.er_psg,
+p_tst1 <- ggplot(df.er_psg,
        aes(psg_tst, watch_val_rating, color = intensity))+
   geom_point(alpha = .4)+
   geom_smooth(method = "lm")+
   labs(title = "Total sleep time and reactivity (all cases)")
 
-ggplot(df.er_psg %>% filter(psg_tst > 0),
-       aes(psg_tst, watch_val_rating, color = intensity))+
+p_tst2 <- ggplot(df.er_psg,
+       aes(psg_tst, reappraise_val_change, color = intensity))+
   geom_point(alpha = .4)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and reactivity (TST>0)")
+  labs(title = "Total sleep time and reappraisal")
+
+p_tst3 <- ggplot(df.er_psg,
+       aes(psg_tst, distract_val_change, color = intensity))+
+  geom_point(alpha = .4)+
+  geom_smooth(method = "lm")+
+  labs(title = "Total sleep time and distraction")
 ```
+
 
 ```{r analysis: PSG and ER}
 glimpse(df.psg_summary)
 glimpse(df.ER_ind_wide)
 
-
+# combine ER task data and PSG data
 df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
                        by = c("participant" = "pid"))
 
+
+# REM duration
+with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+     cor.test(psg_rem, watch_val_rating))
+with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+     cor.test(psg_rem, watch_arou_rating))
+# REM percentage %
+with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
+     cor.test(psg_rem_perc, watch_val_rating))
+with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
+     cor.test(psg_rem_perc, watch_arou_rating))
 ```
 
 
