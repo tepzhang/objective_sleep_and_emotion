@@ -177,6 +177,66 @@ ggplot(fatigue_quality_summary, aes(x = score))+
 
 
 ```
+```{r create ER task individual-level data}
+# create a clean data from the raw data
+agg_df <-  agg_df_raw
+agg_df$task <- tolower(agg_df$task) #change it to lower case
+agg_df$task <- gsub("rethink", "reappraise", agg_df$task) #replace "rethink" with reappraise
+#remove unnecessary rows of "instructions"
+agg_df <- agg_df %>% 
+  filter(imageFile != "")
+#force variable type to be numeric
+agg_df$NegRating.response <- as.numeric(agg_df$NegRating.response)
+agg_df$ArousalRating.response <- as.numeric(agg_df$ArousalRating.response)
+
+# remove participants who had less than 100 trials
+agg_df <- agg_df %>% 
+  group_by(participant) %>% 
+  mutate(n_trial = n()) %>% 
+  filter(n_trial > 100)
+# change the variable "assign" to "intensity"
+names(agg_df)[names(agg_df) == "assign"] <- "intensity"
+
+# check the number of neutral, low, mid, and high trials (trial number = 15 for each condition)
+agg_df %>% 
+  group_by(participant, task, intensity) %>% 
+  tally()
+
+# individual-wise data
+df.ER_ind <-  agg_df %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(NegRating.response = mean(NegRating.response, na.rm = TRUE),
+            ArousalRating.response = mean(ArousalRating.response, na.rm = TRUE))
+
+df.ER_ind$task <- factor(df.ER_ind$task, levels=c('watch', 'reappraise','distract'), ordered=TRUE)
+df.ER_ind$intensity <- factor(df.ER_ind$intensity, levels=c('high', 'mid','low', 'ntr'), ordered=TRUE)
+
+################### change scores ####################
+#valence ratings changes
+temp_val_change <-  df.ER_ind %>% 
+  spread(task, NegRating.response) %>% 
+  group_by(participant, intensity) %>% 
+  summarise(watch_val_rating = sum(watch, na.rm = T), 
+            distract_val_rating = sum(distract, na.rm = T), 
+            reappraise_val_rating = sum(reappraise, na.rm = T))
+#arousal ratings changes
+temp_arou_change <-  df.ER_ind %>% 
+  spread(task, ArousalRating.response) %>% 
+  group_by(participant, intensity) %>% 
+  summarise(watch_arou_rating = sum(watch, na.rm = T), 
+            distract_arou_rating = sum(distract, na.rm = T), 
+            reappraise_arou_rating = sum(reappraise, na.rm = T))
+# merge the 2 wide dataframes
+df.ER_ind_wide <- merge(temp_val_change, temp_arou_change, 
+                       by = c("participant","intensity"))
+df.ER_ind_wide <- df.ER_ind_wide %>% 
+  mutate(distract_val_change = watch_val_rating - distract_val_rating, 
+         reappraise_val_change = watch_val_rating - reappraise_val_rating,
+         distract_arou_change = watch_arou_rating - distract_arou_rating, 
+         reappraise_arou_change = watch_arou_rating - reappraise_arou_rating,
+         picture = ifelse(intensity == "ntr", "ntr", "neg")) #label the trials as eigher "neutral" or "negative
+```
+
 
 ```{r check psg files}
 linda_folder <- "Z:/SBER/SBER1_physio_R56/SBER_sleepreports_LindaClete/Scored/11.13.18"
@@ -346,6 +406,15 @@ df.psg$stage <- factor(df.psg$stage,
 write_csv(df.psg_summary, "Z:/SBER/SBER1_physio_R56/data/Full_Study/psg_data/psg_summary.csv")
 ```
 
+```{r combine PSG and ER task data}
+glimpse(df.psg_summary)
+glimpse(df.ER_ind_wide)
+
+# combine ER task data and PSG data
+df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
+                       by = c("participant" = "pid"))
+```
+
 ```{r visualization 1 PSG}
 hist(df.psg_summary$psg_tib, main = "PSG time in bed")
 hist(df.psg_summary$psg_tst, main = "PSG total sleep time")
@@ -455,14 +524,6 @@ p_tst3 <- ggplot(df.er_psg,
 
 
 ```{r analysis: PSG and ER}
-glimpse(df.psg_summary)
-glimpse(df.ER_ind_wide)
-
-# combine ER task data and PSG data
-df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
-                       by = c("participant" = "pid"))
-
-
 # REM duration
 with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
      cor.test(psg_rem, watch_val_rating))
