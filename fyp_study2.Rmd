@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # library(gridExtra)
 library(cowplot)
 library("kableExtra") # for making nice tables
+library(GGally)
 library(tidyverse)
 ```
 
@@ -427,15 +428,48 @@ hist(df.psg_summary$psg_rem_perc, main = "PSG REM percentage")
 # REM and SWS
 p_psg1 <- ggplot(df.psg_summary,
        aes(psg_rem, psg_n3))+
-  geom_point(alpha = .5)+
+  geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
   labs(title = "REM ~ SWS (min)")
 
 p_psg2 <- ggplot(df.psg_summary,
        aes(psg_rem_perc, psg_n3_perc))+
-  geom_point(alpha = .5)+
+  geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
   labs(title = "REM ~ SWS (%)")
+
+# TST and REM
+p_psg3 <- ggplot(df.psg_summary,
+       aes(psg_rem, psg_tst))+
+  geom_point(alpha = .8)+
+  geom_smooth(method = "lm")+
+  labs(title = "REM ~ TST (min)")
+
+# TST and REM
+p_psg4 <- ggplot(df.psg_summary,
+       aes(psg_n3, psg_tst))+
+  geom_point(alpha = .8)+
+  geom_smooth(method = "lm")+
+  labs(title = "SWS ~ TST (min)")
+
+
+## correlation matrix ####
+ggpairs(df.er_psg %>%
+          filter(intensity == "high") %>% 
+          select(psg_tst, psg_n1, psg_n2, psg_n3, psg_rem, 
+                 watch_val_rating, watch_arou_rating)) +
+  theme_minimal()
+
+
+ggsave("plots/psg_correlations.png", width = 9, height = 9)
+ggsave("plots/psg_reactivity_correlations.png", width = 12, height = 12)
+
+# library(corrplot)
+# M <- cor(df.er_psg %>% 
+#            filter(intensity == "high") %>% 
+#            select(psg_tst, psg_n1, psg_n2, psg_n3, psg_rem) %>% 
+#            na.omit())
+# corrplot.mixed(M, upper = "ellipse")
 
 ```
 ```{r visualization 2 REM and reactivity}
@@ -526,7 +560,7 @@ p_rem14 <- ggplot(df.er_psg %>% filter(psg_rem >0),
 
 
 plot_grid(p_rem9, p_rem10, p_rem13, p_rem14)
-ggsave("plots/rem-valence-regulation correlation.pdf", width = 12, height = 9)
+ggsave("plots/rem-valence-regulation correlation.png", width = 12, height = 9)
 
 #### REM and regulation of arousal ####
 
@@ -555,7 +589,7 @@ p_rem16 <- ggplot(df.er_psg %>% filter(psg_rem >0),
   labs(title = "REM% and distraction-arousal change (REM > 0)")
 
 plot_grid(p_rem11, p_rem12, p_rem15, p_rem16)
-ggsave("plots/rem-arousal-regulation correlation.pdf", width = 12, height = 9)
+ggsave("plots/rem-arousal-regulation correlation.png", width = 12, height = 9)
 ```
 
 ```{r visualization 4 SWS and reactivity}
@@ -615,7 +649,7 @@ p_sws8 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
   labs(title = "SWS% and distract-valence change (REM > 0)")
 
 plot_grid(p_sws5, p_sws6, p_sws7, p_sws8)
-ggsave("plots/sws-valence-regulation correlation.pdf", width = 12, height = 9)
+ggsave("plots/sws-valence-regulation correlation.png", width = 12, height = 9)
 
 #### SWS and arousal-regulation ####
 p_sws9 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
@@ -643,7 +677,7 @@ p_sws12 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
   labs(title = "SWS% and distract-arousal change (REM > 0)")
 
 plot_grid(p_sws9, p_sws10, p_sws11, p_sws12)
-ggsave("plots/sws-arousal-regulation correlation.pdf", width = 12, height = 9)
+ggsave("plots/sws-arousal-regulation correlation.png", width = 12, height = 9)
 
 ```
 
@@ -731,6 +765,10 @@ with(df.er_psg %>% filter(intensity == "low", psg_rem > 0),
      cor.test(psg_tst, watch_val_rating))
 with(df.er_psg %>% filter(intensity == "low", psg_rem > 0),
      cor.test(psg_tst, watch_arou_rating))
+
+# TST and regulation
+with(df.er_psg %>% filter(intensity == "mid", psg_rem > 0),
+     cor.test(psg_tst, reappraise_arou_change))
 ```
 ```{r analysis: REM and ER-task linear models}
 ## DV: valence rating ####
@@ -745,6 +783,7 @@ summary(mod_rem1)
 mod_rem2 <- lm(watch_val_rating ~ psg_tst + psg_rem, 
                data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0))
 summary(mod_rem2)
+
 
 
 ## interaction effect
@@ -791,6 +830,10 @@ mod_sws1 <- lm(watch_val_rating ~ psg_n3,
                data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0))
 summary(mod_sws1)
 
+mod_sws7 <- lm(watch_val_rating ~ psg_n3 + psg_tst,
+               data = df.er_psg %>% filter(intensity == "mid" , psg_rem > 0))
+summary(mod_sws7)
+
 # interaction
 mod_sws2 <- lm(watch_val_rating ~ psg_n3+intensity_num, 
                data = df.er_psg %>% filter(psg_rem > 0))
@@ -802,6 +845,10 @@ anova(mod_sws2, mod_sws3)
 mod_sws4 <- lm(watch_arou_rating ~ psg_n3,
                data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0))
 summary(mod_sws4)
+
+mod_sws8 <- lm(watch_val_rating ~ psg_n3 + psg_tst,
+               data = df.er_psg %>% filter(intensity == "mid" , psg_rem > 0))
+summary(mod_sws8)
 
 # interaction
 mod_sws5 <- lm(watch_arou_rating ~ psg_n3+intensity_num, 
