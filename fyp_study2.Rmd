@@ -736,7 +736,36 @@ ggplot(df.er_psg,
               linetype = 2,
               color = "black",
               method = "lm", se = F)+
-  labs(title = "Total sleep time and arousal-reactivity (all cases)")
+  labs(title = "Total sleep time and arousal-reactivity (original)")
+
+
+ggplot(df.er_psg,
+       aes(psg_tst, watch_arou_rating))+
+  geom_point(aes(color = intensity), alpha = .8)+
+  geom_smooth(data = df.er_psg,
+              aes(psg_tst, watch_arou_rating),
+              linetype = 2,
+              color = "black",
+              method = "lm", se = F)+
+  labs(title = "Total sleep time and arousal-reactivity (average)")
+
+
+df.er_psg <- df.er_psg %>% 
+  group_by(participant) %>% 
+  mutate(watch_arou_rating_ctrd = scale(watch_arou_rating, 
+                                        center=T, scale = F),
+         watch_arou_rating_scld = scale(watch_arou_rating, 
+                                        center=T, scale = T))
+
+ggplot(df.er_psg,
+       aes(psg_tst, watch_arou_rating_ctrd, color = intensity))+
+  geom_point(alpha = .8)+
+  geom_smooth(method = "lm", se = F)+
+  geom_smooth(aes(psg_tst, watch_arou_rating_ctrd),
+              linetype = 2,
+              color = "black",
+              method = "lm", se = F)+
+  labs(title = "Total sleep time and arousal-reactivity (mean-centered)")
 
 
 ```
