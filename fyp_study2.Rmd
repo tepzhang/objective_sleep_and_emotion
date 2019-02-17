@@ -725,6 +725,23 @@ ggsave("plots/tst-reactivity and regulation correlation.png", width = 12, height
 
 ```
 
+```{r visualization: mean-center the raw rating}
+
+ggplot(df.er_psg,
+       aes(psg_tst, watch_arou_rating, color = intensity))+
+  geom_point(alpha = .8)+
+  geom_smooth(method = "lm", se = F)+
+  geom_smooth(data = df.er_psg,
+              aes(psg_tst, watch_arou_rating),
+              linetype = 2,
+              color = "black",
+              method = "lm", se = F)+
+  labs(title = "Total sleep time and arousal-reactivity (all cases)")
+
+
+```
+
+
 
 ```{r analysis: PSG and ER-task correlation}
 # REM duration
