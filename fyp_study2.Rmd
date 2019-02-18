@@ -725,7 +725,7 @@ ggsave("plots/tst-reactivity and regulation correlation.png", width = 12, height
 
 ```
 
-```{r visualization: mean-center the raw rating}
+```{r visualization 7: mean-center the raw rating}
 
 ggplot(df.er_psg,
        aes(psg_tst, watch_arou_rating, color = intensity))+
@@ -928,6 +928,69 @@ lm(watch_arou_rating ~ psg_rem + psg_n3,
   summary()
 ```
 
+```{r simulation}
+# simulation dataframe
+df.simul <- df.er_psg %>% 
+  filter(!is.na(psg_tst), intensity == "high") 
+
+
+fun.simulate <- function(){
+  # reactivity 1: only related to TST
+  df.simul$reactivity1 <- df.simul$psg_tst*0.01 + rnorm(41, 0, 1)
+  # reactivity 2: related to TST and REM
+  df.simul$reactivity2 <- df.simul$psg_tst*0.008 + df.simul$psg_rem*0.01 + rnorm(41, 0, 1)
+  
+  # ggpairs(df.simul %>% select(psg_tst, psg_rem, psg_rem_perc, reactivity1, reactivity2))
+  
+  m1 <- lm(reactivity1 ~ psg_tst + psg_rem, data = df.simul) %>% tidy()
+  m2 <- lm(reactivity1 ~ psg_rem_perc, data = df.simul) %>% tidy()
+  m3 <- lm(reactivity2 ~ psg_tst + psg_rem, data = df.simul) %>% tidy()
+  m4 <- lm(reactivity2 ~ psg_rem_perc, data = df.simul) %>% tidy()
+  
+  return(c(m1$p.value[3], m2$p.value[2], m3$p.value[3], m4$p.value[2]))
+}
+
+# simulate 1k times
+sim_result <- replicate(10000, fun.simulate())
+
+
+# construc the data fame from the simulated results
+sim_result <- t(sim_result) %>% as.tibble()
+names(sim_result) <- c("p1_reactivity1", "p2_reactivity1", 
+                         "p1_reactivity2", "p2_reactivity2")
+sim_result_t <- sim_result %>% 
+  gather(p_type, p_value, p1_reactivity1:p2_reactivity2) %>% 
+  separate(col = p_type, into = c("p_type", "DV"), sep = "_")
+
+sim_result_t$p_type <- factor(sim_result_t$p_type, levels = c("p2", "p1"))
+
+# summarize p-values
+sim_result_t %>% 
+  group_by(p_type, DV) %>% 
+  summarise(number = sum(p_value < .05),
+            rej_rate = number/n()) %>% 
+  arrange(DV)
+
+
+
+ggplot(sim_result_t, 
+       aes(x = p_value))+
+  geom_density(aes(fill = p_type), alpha = .3)+
+  geom_text(data = data.frame(DV = c("reactivity1", "reactivity2"),
+                       text_x = c(.5, .5),
+                       text_y = c(5 ,5),
+                       text = c("null effect data:\np1 (using tst+rem) rejection rate = .0478\np2 (using rem%) rejection rate = .0343",
+                                "REM effect data:\np1 (using tst+rem) rejection rate = .4251\n p2 (using rem%) rejection rate = .4695"),
+                       p_type = c("1","2")
+                       ),
+            aes(text_x, text_y,
+                label = text))+
+  facet_wrap(DV ~ ., ncol = 1)+
+  geom_vline(xintercept = .05, 
+             linetype = 2)
+
+ggsave("plots/simulation.png", width = 8, height = 6)
+```
 
 
 ```{r save workspace}
