@@ -530,6 +530,11 @@ p_rem8 <- ggplot(df.er_psg %>% filter(psg_rem_perc > 0),
 plot_grid(p_rem5, p_rem6, p_rem7, p_rem8, ncol = 2)
 ggsave("plots/rem-arousal-reactivity correlation.png", width = 12, height = 9)
 
+
+plot_grid(p_rem1, p_rem5, p_rem3, p_rem7, ncol = 2)
+ggsave("plots/rem-reactivity correlation.png", width = 12, height = 9)
+
+
 ```
 ```{r visualization 3 REM and regulation}
 #### REM and regulation of valence ####
@@ -594,33 +599,33 @@ ggsave("plots/rem-arousal-regulation correlation.png", width = 12, height = 9)
 
 ```{r visualization 4 SWS and reactivity}
 #### SWS and valence-reactivity ####
-p_sws1 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws1 <- ggplot(df.er_psg,
        aes(psg_n3, watch_val_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and valence-reactivity (REM > 0)")
+  labs(title = "SWS and valence-reactivity")
 
-p_sws2 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws2 <- ggplot(df.er_psg ,
        aes(psg_n3_perc, watch_val_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and valence-reactivity (REM > 0)")
+  labs(title = "SWS% and valence-reactivity")
 
 #### SWS and arousal-reactivity ####
-p_sws3 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws3 <- ggplot(df.er_psg,
        aes(psg_n3, watch_arou_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and arousal-reactivity (REM > 0)")
+  labs(title = "SWS and arousal-reactivity")
 
-p_sws4 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws4 <- ggplot(df.er_psg,
        aes(psg_n3_perc, watch_arou_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and arousal-reactivity (REM > 0)")
+  labs(title = "SWS% and arousal-reactivity")
 
 plot_grid(p_sws1, p_sws3, p_sws2, p_sws4)
-ggsave("plots/sws-reactivity correlation.png", width = 12, height = 9)
+ggsave("plots/sws-reactivity correlation2.png", width = 12, height = 9)
 ```
 ```{r visualization 5 SWS and regulation}
 #### SWS and valence-regulation ####
@@ -683,45 +688,45 @@ ggsave("plots/sws-arousal-regulation correlation.png", width = 12, height = 9)
 
 ```{r visualization 6 TST}
 ### TST (total sleep time) and reactivity ####
-p_tst1 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst1 <- ggplot(df.er_psg,
        aes(psg_tst, watch_val_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and valence-reactivity (REM > 0)")
+  labs(title = "Total sleep time and valence-reactivity")
 
-p_tst2 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst2 <- ggplot(df.er_psg,
        aes(psg_tst, watch_arou_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and arousal-reactivity (REM > 0)")
+  labs(title = "Total sleep time and arousal-reactivity")
 
 ### TST and regulation ####
-p_tst3 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst3 <- ggplot(df.er_psg,
        aes(psg_tst, reappraise_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and reappraisal-valence change (REM > 0)")
+  labs(title = "Total sleep time and reappraisal-valence change")
 
-p_tst4 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst4 <- ggplot(df.er_psg,
        aes(psg_tst, distract_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and distraction-valence change (REM > 0)")
+  labs(title = "Total sleep time and distraction-valence change")
 
-p_tst5 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst5 <- ggplot(df.er_psg,
        aes(psg_tst, reappraise_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and reappraisal-arousal change (REM > 0)")
+  labs(title = "Total sleep time and reappraisal-arousal change")
 
-p_tst6 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_tst6 <- ggplot(df.er_psg,
        aes(psg_tst, distract_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "Total sleep time and distraction-arousal change (REM > 0)")
+  labs(title = "Total sleep time and distraction-arousal change")
 
 plot_grid(p_tst1, p_tst2, p_tst3, p_tst4, p_tst5, p_tst6, ncol = 2)
-ggsave("plots/tst-reactivity and regulation correlation.png", width = 12, height = 13.5)
+ggsave("plots/tst-reactivity and regulation correlation2.png", width = 12, height = 13.5)
 
 ```
 
@@ -774,9 +779,9 @@ ggplot(df.er_psg,
 
 ```{r analysis: PSG and ER-task correlation}
 # REM duration
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_rem, watch_val_rating))
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_rem, watch_arou_rating))
 # REM percentage %
 with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
@@ -786,9 +791,9 @@ with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
 
 
 # SWS duration
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_n3, watch_val_rating))
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_n3, watch_arou_rating))
 # SWS percentage %
 with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
@@ -797,19 +802,19 @@ with(df.er_psg %>% filter(intensity == "high", psg_rem_perc > 0),
      cor.test(psg_n3_perc, watch_arou_rating))
 
 # TST duration
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "high"),
      cor.test(psg_tst, watch_val_rating))
-with(df.er_psg %>% filter(intensity == "high", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "high"),
      cor.test(psg_tst, watch_arou_rating))
 
-with(df.er_psg %>% filter(intensity == "mid", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "mid"),
      cor.test(psg_tst, watch_val_rating))
-with(df.er_psg %>% filter(intensity == "mid", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "mid"),
      cor.test(psg_tst, watch_arou_rating))
 
-with(df.er_psg %>% filter(intensity == "low", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_tst, watch_val_rating))
-with(df.er_psg %>% filter(intensity == "low", psg_rem > 0),
+with(df.er_psg %>% filter(intensity == "low"),
      cor.test(psg_tst, watch_arou_rating))
 
 # TST and regulation
@@ -866,9 +871,9 @@ summary(mod_rem6)
 
 ## interaction effect
 mod_rem7 <- lm(watch_arou_rating ~ psg_rem+intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+               data = df.er_psg)
 mod_rem8 <- lm(watch_arou_rating ~ psg_rem*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+               data = df.er_psg)
 anova(mod_rem7, mod_rem8)
 ```
 
@@ -900,20 +905,20 @@ summary(mod_sws8)
 
 # interaction
 mod_sws5 <- lm(watch_arou_rating ~ psg_n3+intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+               data = df.er_psg)
 mod_sws6 <- lm(watch_arou_rating ~ psg_n3*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+               data = df.er_psg)
 anova(mod_sws5, mod_sws6)
 ```
 ```{r analyses: TST and ER-task linear models}
 ## interaction
-mod_tst3 <- lm(watch_arou_rating ~ psg_tst*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
-summary(mod_tst3)
-
-mod_tst4 <- lm(watch_arou_rating ~ psg_tst*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+mod_tst4 <- lm(watch_val_rating ~ psg_tst*intensity_num, 
+               data = df.er_psg)
 summary(mod_tst4)
+
+mod_tst3 <- lm(watch_arou_rating ~ psg_tst*intensity_num, 
+               data = df.er_psg)
+summary(mod_tst3)
 ```
 
 
@@ -941,7 +946,8 @@ fun.simulate <- function(){
   df.simul$reactivity2 <- df.simul$psg_tst*0.008 + df.simul$psg_rem*0.01 + rnorm(41, 0, 1)
   
   # ggpairs(df.simul %>% select(psg_tst, psg_rem, psg_rem_perc, reactivity1, reactivity2))
-  
+  # ggsave("plots/simulation_correlation.png", width = 8, height = 7)
+
   m1 <- lm(reactivity1 ~ psg_tst + psg_rem, data = df.simul) %>% tidy()
   m2 <- lm(reactivity1 ~ psg_rem_perc, data = df.simul) %>% tidy()
   m3 <- lm(reactivity2 ~ psg_tst + psg_rem, data = df.simul) %>% tidy()
@@ -989,7 +995,7 @@ ggplot(sim_result_t,
   geom_vline(xintercept = .05, 
              linetype = 2)
 
-ggsave("plots/simulation.png", width = 8, height = 6)
+ggsave("plots/simulation_distribution.png", width = 8, height = 6)
 ```
 
 
