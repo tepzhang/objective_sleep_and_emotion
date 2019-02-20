@@ -835,9 +835,10 @@ mod_rem2 <- lm(watch_val_rating ~ psg_tst + psg_rem,
                data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0))
 summary(mod_rem2)
 
-lm(watch_val_rating ~ psg_tst + psg_rem_perc, 
-               data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0)) %>% 
-  summary()
+# The Bayes Factor way
+mod_rem2_BF <- regressionBF(watch_val_rating ~ psg_tst + psg_rem, 
+               data = df.er_psg %>% filter(intensity == "high") %>% na.omit())
+plot(mod_rem2_BF)
 
 ## interaction effect
 
