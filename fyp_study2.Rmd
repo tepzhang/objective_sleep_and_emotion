@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(cowplot)
 library("kableExtra") # for making nice tables
 library(GGally)
+library(lme4)
+library(lmerTest)
 library(tidyverse)
 ```
 
@@ -850,10 +852,10 @@ df.er_psg <- df.er_psg %>%
                                               ifelse(intensity == "high", 3,
                                                      NA)))))
 
-mod_rem3 <- lm(watch_val_rating ~ psg_rem+intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
-mod_rem4 <- lm(watch_val_rating ~ psg_rem*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+mod_rem3 <- lmer(watch_val_rating ~ psg_rem+intensity_num + (1|participant), 
+               data = df.er_psg )
+mod_rem4 <- lmer(watch_val_rating ~ psg_rem*intensity_num + (1|participant), 
+               data = df.er_psg)
 anova(mod_rem3, mod_rem4)
 
 
@@ -867,13 +869,13 @@ mod_rem5 <- lm(watch_arou_rating ~ psg_rem,
 summary(mod_rem5)
 
 mod_rem6 <- lm(watch_arou_rating ~ psg_tst + psg_rem, 
-               data = df.er_psg %>% filter(intensity == "high" , psg_rem > 0))
+               data = df.er_psg %>% filter(intensity == "high"))
 summary(mod_rem6)
 
 ## interaction effect
-mod_rem7 <- lm(watch_arou_rating ~ psg_rem+intensity_num, 
+mod_rem7 <- lmer(watch_arou_rating ~ psg_rem+intensity_num+ (1|participant), 
                data = df.er_psg)
-mod_rem8 <- lm(watch_arou_rating ~ psg_rem*intensity_num, 
+mod_rem8 <- lmer(watch_arou_rating ~ psg_rem*intensity_num+ (1|participant), 
                data = df.er_psg)
 anova(mod_rem7, mod_rem8)
 ```
@@ -889,10 +891,10 @@ mod_sws7 <- lm(watch_val_rating ~ psg_n3 + psg_tst,
 summary(mod_sws7)
 
 # interaction
-mod_sws2 <- lm(watch_val_rating ~ psg_n3+intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
-mod_sws3 <- lm(watch_val_rating ~ psg_n3*intensity_num, 
-               data = df.er_psg %>% filter(psg_rem > 0))
+mod_sws2 <- lmer(watch_val_rating ~ psg_n3+intensity_num + (1|participant), 
+               data = df.er_psg)
+mod_sws3 <- lmer(watch_val_rating ~ psg_n3*intensity_num + (1|participant), 
+               data = df.er_psg)
 anova(mod_sws2, mod_sws3)
 
 ## DV: arousal ratings ####
@@ -905,21 +907,33 @@ mod_sws8 <- lm(watch_val_rating ~ psg_n3 + psg_tst,
 summary(mod_sws8)
 
 # interaction
-mod_sws5 <- lm(watch_arou_rating ~ psg_n3+intensity_num, 
+mod_sws5 <- lmer(watch_arou_rating ~ psg_n3+intensity_num + (1|participant), 
                data = df.er_psg)
-mod_sws6 <- lm(watch_arou_rating ~ psg_n3*intensity_num, 
+mod_sws6 <- lmer(watch_arou_rating ~ psg_n3*intensity_num + (1|participant), 
                data = df.er_psg)
 anova(mod_sws5, mod_sws6)
 ```
 ```{r analyses: TST and ER-task linear models}
 ## interaction
-mod_tst4 <- lm(watch_val_rating ~ psg_tst*intensity_num, 
+
+
+mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num + (1|participant), 
                data = df.er_psg)
 summary(mod_tst4)
 
-mod_tst3 <- lm(watch_arou_rating ~ psg_tst*intensity_num, 
+mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num + (1|participant), 
+               data = df.er_psg)
+anova(mod_tst4c, mod_tst4)
+
+
+
+mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num + (1|participant), 
                data = df.er_psg)
 summary(mod_tst3)
+
+mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num + (1|participant), 
+               data = df.er_psg)
+anova(mod_tst3c, mod_tst3)
 ```
 
 
