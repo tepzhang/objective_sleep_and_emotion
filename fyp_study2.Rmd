@@ -417,6 +417,14 @@ glimpse(df.ER_ind_wide)
 df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
                        by = c("participant" = "pid"))
 
+# read individual difference data
+df.ind_diff <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/processed/SBER1_inddiff_December_3_2018_20.54.csv")
+
+# add gender and age
+df.er_psg <- left_join(df.er_psg, df.ind_diff %>% filter(Progress == 100)
+                         %>% select(partID, age, gender),
+                       by = c("participant" = "partID"))
+df.er_psg$age <- as.numeric(df.er_psg$age)
 ```
 
 ```{r visualization 1 PSG}
