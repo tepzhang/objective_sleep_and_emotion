@@ -1020,6 +1020,121 @@ ggplot(sim_result_t,
 
 ggsave("plots/simulation_distribution.png", width = 8, height = 6)
 ```
+```{r check ERP data}
+
+library(readxl)
+df.LPP <- read_excel('C:/Users/tepzh/Desktop/R56 EEG/28-Feb-2019-trial-LPP-export.xlsx')
+df.LPP$task <- factor(df.LPP$task, levels = c("Watch", "Rethink", "Distract"))
+df.LPP$intensity <- factor(df.LPP$assign, levels = c("ntr", "low", "mid", "high"))
+df.LPP$Subject <- factor(df.LPP$Subject)
+
+
+df.LPP_summary_by_task <- df.LPP %>% 
+  group_by(Subject, intensity) %>% 
+                summarise(LPP_early_P3PzP4 = mean(LPP_early_P3PzP4),
+                          LPP_mid_P3PzP4 = mean(LPP_mid_P3PzP4),
+                          LPP_late_P3PzP4 = mean(LPP_late_P3PzP4))
+
+# early-LPP
+p_LPP_early <- ggplot(df.LPP, # %>% filter(intensity %in% c("ntr", "high")),
+       aes(intensity, 
+           LPP_early_P3PzP4, 
+           group = Subject, 
+           color = Subject))+
+  geom_violin(data = df.LPP_summary_by_task,
+              aes(group = NULL),
+              color = "black",
+              fill = "white")+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  labs(title = "early LPP (300 - 500 ms)")+
+  #ylim(-0.010, 0.005)+
+  theme(legend.position = "none")
+
+
+# mid-LPP
+p_LPP_mid <-ggplot(df.LPP, # %>% filter(intensity %in% c("ntr", "high")),
+       aes(intensity, 
+           LPP_mid_P3PzP4, 
+           group = Subject, 
+           color = Subject))+
+  geom_violin(data = df.LPP_summary_by_task,
+              aes(group = NULL),
+              color = "black",
+              fill = "white")+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  labs(title = "mid LPP (500 - 1000 ms)")+
+  #ylim(-0.010, 0.005)+
+  theme(legend.position = "none")
+
+# late-LPP
+p_LPP_late <-ggplot(df.LPP, # %>% filter(intensity %in% c("ntr", "high")),
+       aes(intensity, 
+           LPP_late_P3PzP4, 
+           group = Subject, 
+           color = Subject))+
+  geom_violin(data = df.LPP_summary_by_task,
+              aes(group = NULL),
+              color = "black",
+              fill = "white")+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  labs(title = "late LPP (1000 - 5000 ms)")+
+  #ylim(-0.010, 0.005)+
+  theme(legend.position = "none")
+
+plot_grid(p_LPP_early, p_LPP_mid, p_LPP_late, ncol = 2)
+ggsave("plots/LPP amplitudes.png", width = 8, height = 6)
+```
 
 
 ```{r save workspace}
