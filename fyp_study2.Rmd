@@ -1037,6 +1037,7 @@ df.LPP_summary_by_task <- df.LPP %>%
                           LPP_mid_P3PzP4 = mean(LPP_mid_P3PzP4),
                           LPP_late_P3PzP4 = mean(LPP_late_P3PzP4))
 
+# can gather the data and plot once here!
 # early-LPP
 p_LPP_early <- ggplot(df.LPP, # %>% filter(intensity %in% c("ntr", "high")),
        aes(intensity, 
@@ -1181,6 +1182,7 @@ ggplot(df.emg, aes(participant, emg_corr))+
 ggsave("plots/emg_raw_points.png", width = 8, height = 6)
 
 
+
 # visualize the EMG 
 df.emg_summary = df.emg %>% 
                 group_by(participant, task) %>% 
@@ -1214,6 +1216,40 @@ ggplot(df.emg, aes(task, emg_corr,
   theme(legend.position = "none")
 
 ggsave("plots/emg_distribution.png", width = 8, height = 6)
+
+
+ggplot(df.emg, aes(time_segment, emg_corr,
+                   group = participant, color = participant))+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 2,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "line")+
+  labs(title = "Time change of EMG in a trial", x = "time (s)")+
+  xlim(0, 6)+
+  theme(legend.position = "none")
+
+ggsave("plots/emg_time_change.png", width = 8, height = 6)
+  
 
 
 df.emg_summary %>% filter(emg_corr > 10)
