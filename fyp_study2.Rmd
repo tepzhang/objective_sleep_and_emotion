@@ -1174,6 +1174,7 @@ ggplot(df.emg, aes(participant, emg_corr))+
                geom = "point",
                color = "red",
                alpha = .5)+
+  labs("EMG raw data points for each participant")+
   theme(axis.text.x = element_text(hjust = 1, angle = 45, 
                                    size = 5, color = "black"))
 
@@ -1209,7 +1210,7 @@ ggplot(df.emg, aes(task, emg_corr,
   #              color = "black",
   #              fun.data = "mean_cl_boot",
   #              geom = "linerange")+
-  labs(title = "Corrugator EMG")+
+  labs(title = "Corrugator EMG (averaged across trials)")+
   theme(legend.position = "none")
 
 ggsave("plots/emg_distribution.png", width = 8, height = 6)
