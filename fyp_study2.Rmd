@@ -17,6 +17,8 @@ library(GGally)
 library(lme4)
 library(lmerTest)
 library(tidyverse)
+
+load("data/workspace_fyp_study2.Rdata")
 ```
 
 ```{r set theme}
@@ -1134,6 +1136,87 @@ p_LPP_late <-ggplot(df.LPP, # %>% filter(intensity %in% c("ntr", "high")),
 
 plot_grid(p_LPP_early, p_LPP_mid, p_LPP_late, ncol = 2)
 ggsave("plots/LPP amplitudes.png", width = 8, height = 6)
+```
+
+```{r Check EMG data}
+emg_path = "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/results/emg_results"
+emg_files <- list.files(emg_path, full.names = T)
+emg_files <- emg_files[grep("SBER.EMG_Corr.[0-9]{4}.*txt$", emg_files)]
+
+# extract the participant numbers
+emg_pids = str_sub(emg_files, str_length(emg_files) - 7, str_length(emg_files) - 4)
+
+# read the datafiles and save to a list
+list.emg <- map(emg_files, ~ read.csv(file = .x, header = F, sep = "\t"))
+
+#view(list.emg[[1]])
+# create the combind dataframe
+df.emg <- bind_rows(list.emg[1:66])
+# add variable names
+names(df.emg) <- c("participant", "task", "trial", "time_segment", "emg_corr")
+df.emg$participant <- factor(df.emg$participant)
+df.emg$task <- factor(df.emg$task, levels = c("Watch", "Rethink", "Distract"))
+
+
+# check the distribution of data
+emg.quantile = quantile(df.emg$emg_corr, probs = seq(0, 1, .01))
+plot(emg.quantile)
+title("EMG quantile")
+abline(h = 20, lty = 2)
+text(x = 90, y = 25, "EMG = 20")
+
+ggplot(df.emg, aes(participant, emg_corr))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+
+ggsave("plots/emg_raw_points.png", width = 8, height = 6)
+
+
+# visualize the EMG 
+df.emg_summary = df.emg %>% 
+                group_by(participant, task) %>% 
+                summarise(emg_corr = mean(emg_corr))
+
+ggplot(df.emg, aes(task, emg_corr, 
+                   group = participant, color = participant))+
+  geom_violin(df.emg_summary,
+              aes(group = NULL),
+              color = "black",
+              fill = "white")+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  # stat_summary(aes(group = NULL),
+  #              size = 1,
+  #              alpha = .5,
+  #              color = "black",
+  #              fun.data = "mean_cl_boot",
+  #              geom = "linerange")+
+  labs(title = "Corrugator EMG")+
+  theme(legend.position = "none")
+
+ggsave("plots/emg_distribution.png", width = 8, height = 6)
+
+
+df.emg_summary %>% filter(emg_corr > 10)
+df.emg_summary %>% filter(participant == 1581)
 ```
 
 
