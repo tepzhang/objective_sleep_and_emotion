@@ -211,10 +211,12 @@ agg_df %>%
 df.ER_ind <-  agg_df %>% 
   group_by(participant, task, intensity) %>% 
   summarise(NegRating.response = mean(NegRating.response, na.rm = TRUE),
-            ArousalRating.response = mean(ArousalRating.response, na.rm = TRUE))
+            ArousalRating.response = mean(ArousalRating.response, na.rm = TRUE)) %>% 
+  filter(!is.nan(NegRating.response), !is.nan(ArousalRating.response)) # some participants have no response and should be removed, e.g. 3032
 
 df.ER_ind$task <- factor(df.ER_ind$task, levels=c('watch', 'reappraise','distract'), ordered=TRUE)
 df.ER_ind$intensity <- factor(df.ER_ind$intensity, levels=c('high', 'mid','low', 'ntr'), ordered=TRUE)
+
 
 ################### change scores ####################
 #valence ratings changes
@@ -246,7 +248,6 @@ df.ER_ind_wide <- df.ER_ind_wide %>%
 ```{r check psg files}
 linda_folder <- "Z:/SBER/SBER1_physio_R56/SBER_sleepreports_LindaClete/Scored/11.13.18"
 destination_folder <- "Z:/SBER/SBER1_physio_R56/data/brux_scored"
-# destination_folder <- "/Volumes/gls$/SBER/SBER1_physio_R56/data/brux_scored"
 
 dir_list_scored <- list.dirs(destination_folder)
 sleep_dirs <- grep("[0-9]{4}_BP\\.SLP$", dir_list_scored, value = T)
@@ -278,10 +279,18 @@ df.psg_summary <-  data.frame()
 for (j in 1:length(psg_pids)){
   # read a single psg file
   psg <- read.csv(psg_txt_files[j]) %>% 
-  rename("stage" = "X.") %>% 
-  mutate(pid = psg_pids[j],
-    time = row_number()/2) %>% # t - time in minute
+    rename("stage" = "X.") %>% 
+    mutate(pid = psg_pids[j],
+           time = row_number()/2) %>% # t - time in minute
     select(pid, stage, time)
+
+  
+  # form some cases: replace 1, 2, 3 with N1, N2, N3
+  psg$stage = as.character(psg$stage)
+  psg$stage[psg$stage == "1"] <-  "N1"
+  psg$stage[psg$stage == "2"] <-  "N2"
+  psg$stage[psg$stage == "3"] <-  "N3"
+  
   # combine the single psg file to the whole data frame
   df.psg = rbind(df.psg, psg)
   
@@ -396,6 +405,22 @@ for (i in 1:nrow(df.psg_summary)){
 }
 df.psg_summary$pid <- as.character(df.psg_summary$pid)
 
+# check participants with NA data
+# df.psg_summary %>% filter(is.na(psg_tst)) %>% select(pid)
+ 
+
+# problematic psg data:
+#   5029 - battery died
+#   5675 - took the psg off at 3 am
+#   3181 - 1,2,3 in the hypnogram data instead of N1, N2, N3
+# recording time < 8 hours
+# 1046
+# 3694
+# 2001
+
+df.psg_summary <- df.psg_summary %>% 
+  filter(!pid %in% c("5029", "5675"))
+
 # mark the labels for stage
 df.psg$stage <- factor(df.psg$stage, 
                          levels = c("?", "N1", "N2", "N3", "R", "W"),
@@ -409,6 +434,8 @@ df.psg$stage <- factor(df.psg$stage,
 
 # write the psg dataset
 write_csv(df.psg_summary, "Z:/SBER/SBER1_physio_R56/data/Full_Study/psg_data/psg_summary.csv")
+
+
 ```
 
 ```{r combine PSG and ER task data}
@@ -427,6 +454,22 @@ df.er_psg <- left_join(df.er_psg, df.ind_diff %>% filter(Progress == 100)
                          %>% select(partID, age, gender),
                        by = c("participant" = "partID"))
 df.er_psg$age <- as.numeric(df.er_psg$age)
+
+# check how many participants in df.er_psg have complete data
+df.er_psg %>% 
+  filter(!is.na(psg_tst)) %>%
+  select(participant) %>% 
+  unique()
+
+# check wparticipants who have psg data but not session 2 ER data
+df.psg_summary$pid[!df.psg_summary$pid %in% df.ER_ind_wide$participant]
+# 1061 - only 75 trials in ER task
+# 1070 - no session 2 data
+# 1152 - only 76 trials in ER task
+# 1574 - 2 data files, did the first block twice
+# 3026 - no IER task data
+# 3032 - no response in the task data
+# 3036 - no IER task data
 ```
 
 ```{r visualization 1 PSG}
@@ -474,7 +517,7 @@ ggpairs(df.er_psg %>%
 
 
 # ggsave("plots/psg_correlations.png", width = 9, height = 8)
-ggsave("plots/psg_reactivity_correlations.png", width = 12, height = 12)
+ggsave("plots/psg_reactivity_correlations.png", width = 12, height = 9)
 
 # library(corrplot)
 # M <- cor(df.er_psg %>% 
