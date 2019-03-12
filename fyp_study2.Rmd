@@ -421,8 +421,8 @@ df.psg_summary$pid <- as.character(df.psg_summary$pid)
 # 1070 - 170
 # 1570 - 191.5
 
-df.psg_summary <- df.psg_summary %>% 
-  filter(!pid %in% c("5029", "5675"))
+# df.psg_summary <- df.psg_summary %>% 
+#   filter(!pid %in% c("5029", "5675"))
 
 # mark the labels for stage
 df.psg$stage <- factor(df.psg$stage, 
