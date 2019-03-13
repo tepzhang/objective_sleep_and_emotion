@@ -11,12 +11,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r load library}
 # library(gridExtra)
-library(cowplot)
 library("kableExtra") # for making nice tables
 library(GGally)
 library(lme4)
 # library(lmerTest)
+library("janitor")    # for cleaning column names
+library("broom")      # for tidying up linear models
 library(tidyverse)
+library(cowplot)
 
 load("data/workspace_fyp_study2.Rdata")
 ```
@@ -338,8 +340,18 @@ for (j in 1:length(psg_pids)){
       break
     } 
   }
+    # time point of lights out
+  time_light_out = 1
+  for (i in 1:nrow(psg)){
+    if (psg$stage[i] != "?"){
+      time_light_out = i/2 
+      break
+    } 
+  }
   # total recording time
   psg_trt = nrow(psg)/2
+  # end recording time (recording after lights on)
+  psg_ert = psg_trt - time_slp_offset
   # time in bed (time available for sleep)
   psg_tib = time_light_on - time_light_out
   # total sleep time
@@ -378,7 +390,7 @@ for (j in 1:length(psg_pids)){
   psg_rem_perc = psg_rem/psg_tst
   
   # contrust the PSG summary for one participant
-  psg_summary <- c(psg_pids[j], psg_trt, psg_tib, psg_tst, psg_waso, psg_slp_eff, 
+  psg_summary <- c(psg_pids[j], psg_trt, psg_ert, psg_tib, psg_tst, psg_waso, psg_slp_eff, 
                    psg_slp_latency, psg_rem_latency, psg_wake, psg_n1, psg_n1_perc,
                    psg_n2, psg_n2_perc, psg_n3, psg_n3_perc, psg_rem, psg_rem_perc) %>% 
     as.numeric()
@@ -387,7 +399,7 @@ for (j in 1:length(psg_pids)){
   
   # set variable names of the summary report
   if(j == 1){
-    names(df.psg_summary) <- c("pid", "psg_trt", "psg_tib", "psg_tst", "psg_waso",
+    names(df.psg_summary) <- c("pid", "psg_trt", "psg_ert", "psg_tib", "psg_tst", "psg_waso",
                                "psg_slp_eff", "psg_slp_latency", "psg_rem_latency",
                                "psg_wake", "psg_n1", "psg_n1_perc", "psg_n2",
                                "psg_n2_perc", "psg_sws", "psg_sws_perc", 
@@ -409,20 +421,67 @@ df.psg_summary$pid <- as.character(df.psg_summary$pid)
 # df.psg_summary %>% filter(is.na(psg_tst)) %>% select(pid)
  
 
-# problematic psg data:
-#   5029 - battery died
-#   5675 - took the psg off at 3 am
-#   3181 - 1,2,3 in the hypnogram data instead of N1, N2, N3 - corrected
-# recording time < 8 hours
-# 1046 - 275.5
-# 3694 - 344.5
-# 2001 - 472.5
-# total sleep time < 200 minutes
-# 1070 - 170
-# 1570 - 191.5
 
-# df.psg_summary <- df.psg_summary %>% 
-#   filter(!pid %in% c("5029", "5675"))
+# import the redcap biocalibration log
+df.biocali_redcap <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/redcap/Biocalibration_DATA_2019-03-08_0956.csv") %>% 
+  filter(!participant_id %in% c("3694", "5811"))  # remove the first log of 3694 and 5811  (they have a 2nd psg)
+
+df.biocali_redcap <- df.biocali_redcap %>% 
+  mutate(pid = str_sub(participant_id, 1, 4),
+         pid = ifelse(is.na(as.numeric(subject_id)), pid,
+           ifelse(as.numeric(subject_id) > as.numeric(pid), subject_id, pid)),# e.g. 1070
+         lack_colon = (!is.na(recording_start_time_pst) & 
+                                !grepl(":", recording_start_time_pst)),# decide which cell lacks ":" in the time
+        # insert a ":"
+         recording_start_time_pst_corrected = 
+          ifelse(lack_colon == TRUE,
+                 str_c(str_sub(recording_start_time_pst, 1, 2), ":",
+                       str_sub(recording_start_time_pst, 3, 4), sep = ""),
+                                                     recording_start_time_pst)) 
+
+
+library(lubridate)
+# merge the psg-recording-start-time to psg data
+tmp <- df.psg_summary %>% 
+  left_join(df.biocali_redcap %>% select(pid, recording_start_time_pst_corrected),
+            by = "pid") %>% 
+  mutate(
+    psg_record_start_hour = hour(strptime(recording_start_time_pst_corrected, "%H:%M")), #get the hour of the recording start time
+    psg_record_start = ifelse(
+      psg_record_start_hour <= 12, # is the time in the evening?
+      (strptime(recording_start_time_pst_corrected, "%H:%M") + hours(12)) %>%
+        strftime("%H:%M"),# make corrections if the time is in the morning
+      strptime(recording_start_time_pst_corrected, "%H:%M")%>% 
+        strftime("%H:%M")),
+    psg_record_stop = (strptime(psg_record_start, "%H:%M") + 
+                         minutes(as.integer(psg_trt))) # have to be integer for time calculation
+    %>% strftime("%H:%M"))
+
+# to check the stop-recording time
+tmp %>% arrange(psg_ert) %>% view()
+
+
+## problematic psg data:
+#   5029 - battery died at 3:49
+#   5675 - took the psg off at 3 am
+## recording time < 8 hours
+#   1046 - 275.5; psg stopped recording at 2:32, stopped in REM
+#   3694 - 344.5; psg stopped recording at 3:27, stopped in N2
+#   2001 - 472.5; reported to go to bed at 10:30 and wake up at 6:30, stop-recording time unknown (around 4:30 am), stopped in REM
+## total sleep time < 200 minutes
+#   1070 - 170; took off the psg around 4 am; psg stopped recording at 11:07;
+#   1570 - 191.5; reported to go to bed around 12, have 9 hours sleep and waked up at 9:24 on 5/24 - may have taken the psg off - 2 single N2, N3 points way ahead sleep time???
+
+## other no end-recording-time cases
+#   1581 - no end-recording time; go to bed at 11:30, stopped recording around 8:52; reported waked up at 8:50 and got up at 9 - should be fine
+#   5461 - no end-recording time; try to sleep at 9, stopped recording around 4:46; reported waked up at 4:55 and got up at 6:15 - should be fine
+
+# assign tmp to df.psg_summary
+df.psg_summary <- tmp
+
+# remove problematic psg data
+df.psg_summary <- df.psg_summary %>%
+  filter(!pid %in% c("5029", "5675", "1046", "3694", "2001", "1070", "1570"))
 
 # mark the labels for stage
 df.psg$stage <- factor(df.psg$stage, 
@@ -430,8 +489,8 @@ df.psg$stage <- factor(df.psg$stage,
                          labels = c("?", "N1", "N2", "SWS", "R", "W"))
 
 # # plot the staging data to check
-# ggplot(df.psg %>% filter(pid == "2227"), aes(time, stage))+
-#   geom_point(alpha = .5, size = 1)
+# ggplot(df.psg %>% filter(pid == "1570"), aes(time, stage))+
+#   geom_point(alpha = .2, size = 1)
 
 # kable(df.psg_summary, digit = 3)
 
@@ -518,7 +577,7 @@ ggpairs(df.psg_summary %>%
                  psg_n1, psg_n2, psg_sws, psg_rem
                  # ,watch_val_rating, watch_arou_rating
                  )) +
-  theme_minimal()
+  theme_grey()
 
 
 ggsave("plots/psg_correlations.png", width = 10, height = 9)
@@ -658,57 +717,57 @@ ggsave("plots/sws-reactivity correlation.png", width = 12, height = 9)
 ```
 ```{r visualization 5 SWS and regulation}
 #### SWS and valence-regulation ####
-p_sws5 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws5 <- ggplot(df.er_psg,
        aes(psg_sws, reappraise_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and reappraisal-valence change (REM > 0)")
+  labs(title = "SWS and reappraisal-valence change")
 
-p_sws6 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws6 <- ggplot(df.er_psg,
        aes(psg_sws, distract_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and distract-valence change (REM > 0)")
+  labs(title = "SWS and distract-valence change")
 
-p_sws7 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws7 <- ggplot(df.er_psg,
        aes(psg_sws_perc, reappraise_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and reappraisal-valence change (REM > 0)")
+  labs(title = "SWS% and reappraisal-valence change")
 
-p_sws8 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws8 <- ggplot(df.er_psg ,
        aes(psg_sws_perc, distract_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and distract-valence change (REM > 0)")
+  labs(title = "SWS% and distract-valence change")
 
 plot_grid(p_sws5, p_sws6, p_sws7, p_sws8)
 ggsave("plots/sws-valence-regulation correlation.png", width = 12, height = 9)
 
 #### SWS and arousal-regulation ####
-p_sws9 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws9 <- ggplot(df.er_psg ,
        aes(psg_sws, reappraise_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and reappraisal-arousal change (REM > 0)")
+  labs(title = "SWS and reappraisal-arousal change")
 
-p_sws10 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws10 <- ggplot(df.er_psg,
        aes(psg_sws, distract_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS and distract-arousal change (REM > 0)")
+  labs(title = "SWS and distract-arousal change")
 
-p_sws11 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws11 <- ggplot(df.er_psg ,
        aes(psg_sws_perc, reappraise_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and reappraisal-arousal change (REM > 0)")
+  labs(title = "SWS% and reappraisal-arousal change")
 
-p_sws12 <- ggplot(df.er_psg %>% filter(psg_rem > 0),
+p_sws12 <- ggplot(df.er_psg,
        aes(psg_sws_perc, distract_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "SWS% and distract-arousal change (REM > 0)")
+  labs(title = "SWS% and distract-arousal change")
 
 plot_grid(p_sws9, p_sws10, p_sws11, p_sws12)
 ggsave("plots/sws-arousal-regulation correlation.png", width = 12, height = 9)
@@ -948,7 +1007,9 @@ anova(mod_sws5, mod_sws6)
 
 mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num + (1|participant), 
                data = df.er_psg)
-# summary(mod_tst4)
+# lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
+#                data = df.er_psg) %>% summary()
+
 mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num + (1|participant), 
                data = df.er_psg)
 anova(mod_tst4c, mod_tst4)
@@ -957,10 +1018,37 @@ anova(mod_tst4c, mod_tst4)
 
 mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num + (1|participant), 
                data = df.er_psg) 
-# summary(mod_tst3)
+# lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
+#                data = df.er_psg) %>% summary()
+
 mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num + (1|participant), 
                data = df.er_psg)
 anova(mod_tst3c, mod_tst3)
+
+# plot the model prediction
+p_tst_mod1 <- mod_tst4 %>% 
+  augment()  %>% 
+  clean_names() %>% 
+  ggplot(aes(psg_tst, watch_val_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .1)+
+  geom_point(aes(y = fitted), alpha = .5)+
+  geom_smooth(aes(y = fitted), method = "lm", se = F)+
+  labs(title = "model prediction: TST and valence-reactivity")+
+  theme(legend.position = "none")
+
+p_tst_mod2 <- mod_tst3 %>% 
+  augment()  %>% 
+  clean_names() %>% 
+  ggplot(aes(psg_tst, watch_arou_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .1)+
+  geom_point(aes(y = fitted), alpha = .5)+
+  geom_smooth(aes(y = fitted), method = "lm", se = F)+
+  labs(title = "model prediction: TST and arousal-reactivity")+
+  theme(legend.position = "none")
+
+plot_grid(p_tst_mod1, p_tst_mod2)
+ggsave("plots/tst-reactivity models.png", width = 10, height = 5)
+
 ```
 
 
