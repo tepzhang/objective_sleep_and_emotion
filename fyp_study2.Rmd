@@ -183,6 +183,23 @@ ggplot(fatigue_quality_summary, aes(x = score))+
   facet_wrap(.~rating_type, ncol = 3)
 
 
+###### distribution of rating data #####
+ggplot(df.ER_ind_wide, aes(watch_val_rating))+
+  geom_histogram(aes(y = ..density..), fill = "white", color = "black")+
+  geom_density(fill = "salmon", alpha = .5)+
+  facet_wrap(. ~ intensity)+
+  labs(title = "Distribution of valence rating")
+
+ggsave("plots/ER_val_distribution.png", width = 8, height = 6)
+
+ggplot(df.ER_ind_wide, aes(watch_arou_rating))+
+  geom_histogram(aes(y = ..density..), fill = "white", color = "black")+
+  geom_density(fill = "salmon", alpha = .5)+
+  facet_wrap(. ~ intensity)+
+  labs(title = "Distribution of arousal rating")
+
+ggsave("plots/ER_arou_distribution.png", width = 8, height = 6)
+
 ```
 ```{r create ER task individual-level data}
 # create a clean data from the raw data
@@ -627,29 +644,29 @@ ggsave("plots/rem-reactivity correlation.png", width = 12, height = 9)
 ```
 ```{r visualization 3 REM and regulation}
 #### REM and regulation of valence ####
-p_rem9 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem9 <- ggplot(df.er_psg,
        aes(psg_rem, reappraise_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM and reappraisal-valence change (REM > 0)")
+  labs(title = "REM and reappraisal-valence change")
 
-p_rem10 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem10 <- ggplot(df.er_psg,
        aes(psg_rem, distract_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM and distraction-valence change (REM > 0)")
+  labs(title = "REM and distraction-valence change")
 
-p_rem13 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem13 <- ggplot(df.er_psg,
        aes(psg_rem_perc, reappraise_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM% and reappraisal-valence change (REM > 0)")
+  labs(title = "REM% and reappraisal-valence change")
 
-p_rem14 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem14 <- ggplot(df.er_psg,
        aes(psg_rem_perc, distract_val_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM% and distraction-valence change (REM > 0)")
+  labs(title = "REM% and distraction-valence change")
 
 
 plot_grid(p_rem9, p_rem10, p_rem13, p_rem14)
@@ -657,29 +674,29 @@ ggsave("plots/rem-valence-regulation correlation.png", width = 12, height = 9)
 
 #### REM and regulation of arousal ####
 
-p_rem11 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem11 <- ggplot(df.er_psg,
        aes(psg_rem, reappraise_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM and reappraisal-arousal change (REM > 0)")
+  labs(title = "REM and reappraisal-arousal change")
 
-p_rem12 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem12 <- ggplot(df.er_psg,
        aes(psg_rem, distract_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
   labs(title = "REM and distraction-arousal change (REM > 0)")
 
-p_rem15 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem15 <- ggplot(df.er_psg,
        aes(psg_rem_perc, reappraise_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM% and reappraisal-arousal change (REM > 0)")
+  labs(title = "REM% and reappraisal-arousal change")
 
-p_rem16 <- ggplot(df.er_psg %>% filter(psg_rem >0),
+p_rem16 <- ggplot(df.er_psg,
        aes(psg_rem_perc, distract_arou_change, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
-  labs(title = "REM% and distraction-arousal change (REM > 0)")
+  labs(title = "REM% and distraction-arousal change")
 
 plot_grid(p_rem11, p_rem12, p_rem15, p_rem16)
 ggsave("plots/rem-arousal-regulation correlation.png", width = 12, height = 9)
@@ -784,11 +801,28 @@ p_tst1 <- ggplot(df.er_psg,
   geom_smooth(method = "lm", se = F)+
   labs(title = "Total sleep time and valence-reactivity")
 
+# p_tst1b <- ggplot(df.er_psg,
+#        aes(psg_tst, watch_val_rating, color = intensity))+
+#   geom_point(alpha = .8)+
+#   geom_smooth(method = "lm")+
+#   facet_wrap(.~intensity, nrow = 1)+
+#   labs(title = "Total sleep time and valence-reactivity")
+
 p_tst2 <- ggplot(df.er_psg,
        aes(psg_tst, watch_arou_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm", se = F)+
   labs(title = "Total sleep time and arousal-reactivity")
+
+# p_tst2b <- ggplot(df.er_psg,
+#        aes(psg_tst, watch_arou_rating, color = intensity))+
+#   geom_point(alpha = .8)+
+#   geom_smooth(method = "lm")+
+#   facet_wrap(.~intensity, nrow = 1)+
+#   labs(title = "Total sleep time and arousal-reactivity")
+# 
+# plot_grid(p_tst1b, p_tst2b, ncol = 1)
+# ggsave("plots/tst-reactivity_separated.png", width = 12, height = 7)
 
 ### TST and regulation ####
 p_tst3 <- ggplot(df.er_psg,
