@@ -1162,7 +1162,7 @@ ggplot(sim_result_t,
 ggsave("plots/simulation_distribution.png", width = 8, height = 6)
 ```
 ```{r analysis: trial-level model}
-# construct the data frame
+# construct the trial-level data frame
 df.er_trial <- agg_df %>% 
   select(participant, block, imageFile, task, intensity, 
          NegRating.response, NegRating.responseTime,
@@ -1182,20 +1182,60 @@ df.er_trial_psg <- left_join(df.er_trial, df.psg_summary,
   left_join(., 
             df.ind_diff %>% filter(Progress == 100)%>% select(partID, age, gender),
             by = c("participant" = "partID")) %>% 
-  mutate(age = as.numeric(age))
+  mutate(age = as.numeric(age),
+         stimulus = as.numeric(factor(imageFile)),
+         intensity_num = ifelse(intensity == "ntr", 0,
+                                ifelse(intensity == "low", 1,
+                                       ifelse(intensity == "mid", 2,
+                                              ifelse(intensity == "high", 3,
+                                                     NA)))))
 
-df.er_trial_psg %>% glimpse()
 
-df.er_trial_psg %>% 
-  group_by(participant) %>% 
-  tally() %>% 
-  arrange(n)
+# df.er_trial_psg %>% glimpse()
+
+# build the lmer model for "watch" trials (reactivity)
+# valence rating
+mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst + 
+                        (1+intensity_num | participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+mod_tst_lmer1 %>% summary()
+
+mod_tst_lmer1c <- lmer(val_rating ~ intensity_num+psg_tst + 
+                        (1+intensity_num | participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+
+anova(mod_tst_lmer1c, mod_tst_lmer1)
+
+# arousal rating
+mod_tst_lmer2 <- lmer(arou_rating ~ intensity_num*psg_tst + 
+                        (1+intensity_num | participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+mod_tst_lmer2 %>% summary()
+
+mod_tst_lmer2 %>% 
+  augment() %>%
+  clean_names() %>% 
+  ggplot(aes(psg_tst, fitted, color = factor(intensity_num)))+
+  geom_point(alpha = .2)+
+  geom_smooth(method = "lm", color = "black")+
+  facet_wrap(.~intensity_num)+
+  theme(legend.position = "none")
+
+mod_tst_lmer2c <- lmer(arou_rating ~ intensity_num+psg_tst + 
+                        (1+intensity_num | participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+mod_tst_lmer2c %>% summary()
+
+anova(mod_tst_lmer2c, mod_tst_lmer2)
 
 ```
 
 
 ```{r check ERP data}
-
 library(readxl)
 df.LPP <- read_excel('C:/Users/tepzh/Desktop/R56 EEG/28-Feb-2019-trial-LPP-export.xlsx')
 df.LPP$task <- factor(df.LPP$task, levels = c("Watch", "Rethink", "Distract"))
