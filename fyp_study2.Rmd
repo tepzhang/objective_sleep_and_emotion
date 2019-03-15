@@ -1161,6 +1161,39 @@ ggplot(sim_result_t,
 
 ggsave("plots/simulation_distribution.png", width = 8, height = 6)
 ```
+```{r analysis: trial-level model}
+# construct the data frame
+df.er_trial <- agg_df %>% 
+  select(participant, block, imageFile, task, intensity, 
+         NegRating.response, NegRating.responseTime,
+         ArousalRating.response, ArousalRating.responseTime) %>% 
+  mutate_at(vars(NegRating.response, NegRating.responseTime,
+                 ArousalRating.response, ArousalRating.responseTime), 
+            funs(as.numeric)) %>% 
+  rename(val_rating = NegRating.response,
+         val_RT = NegRating.responseTime,
+         arou_rating = ArousalRating.response,
+         arou_RT = ArousalRating.responseTime) %>% 
+  filter(!is.na(val_rating), !is.na(arou_rating)) # remove NA data
+
+# merge with the psg data
+df.er_trial_psg <- left_join(df.er_trial, df.psg_summary, 
+                             by = c("participant" = "pid")) %>%
+  left_join(., 
+            df.ind_diff %>% filter(Progress == 100)%>% select(partID, age, gender),
+            by = c("participant" = "partID")) %>% 
+  mutate(age = as.numeric(age))
+
+df.er_trial_psg %>% glimpse()
+
+df.er_trial_psg %>% 
+  group_by(participant) %>% 
+  tally() %>% 
+  arrange(n)
+
+```
+
+
 ```{r check ERP data}
 
 library(readxl)
