@@ -10,15 +10,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r load library}
-# library(gridExtra)
+# library("knitr")
 library("kableExtra") # for making nice tables
-library(GGally)
-library(lme4)
-# library(lmerTest)
+library("GGally")
+library("lme4")
 library("janitor")    # for cleaning column names
 library("broom")      # for tidying up linear models
-library(tidyverse)
-library(cowplot)
+library("tidyverse")
+library("cowplot")
+library("lubridate") # load lubridate for time data
+library("brms")
 
 load("data/workspace_fyp_study2.Rdata")
 ```
@@ -225,6 +226,8 @@ names(agg_df)[names(agg_df) == "assign"] <- "intensity"
 agg_df %>% 
   group_by(participant, task, intensity) %>% 
   tally()
+# write the data to the server
+write_csv(agg_df, "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_trial_level.csv")
 
 # individual-wise data
 df.ER_ind <-  agg_df %>% 
@@ -261,6 +264,10 @@ df.ER_ind_wide <- df.ER_ind_wide %>%
          distract_arou_change = watch_arou_rating - distract_arou_rating, 
          reappraise_arou_change = watch_arou_rating - reappraise_arou_rating,
          picture = ifelse(intensity == "ntr", "ntr", "neg")) #label the trials as eigher "neutral" or "negative
+
+# write the data to the server
+write_csv(df.ER_ind_wide,
+          "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_participant_level.csv")
 ```
 
 
@@ -287,7 +294,6 @@ psg_txt_files <- psg_files[grep("hypno.TXT$", psg_files)]
 psg_pids <-  str_sub(psg_txt_files, 
                      str_length(psg_txt_files)-13, 
                      str_length(psg_txt_files)-10)
-
 
 #### read files and calculate the sleep staging information #####
 # the raw psg data fram
@@ -457,7 +463,6 @@ df.biocali_redcap <- df.biocali_redcap %>%
                                                      recording_start_time_pst)) 
 
 
-library(lubridate)
 # merge the psg-recording-start-time to psg data
 tmp <- df.psg_summary %>% 
   left_join(df.biocali_redcap %>% select(pid, recording_start_time_pst_corrected),
@@ -485,11 +490,13 @@ tmp %>% arrange(psg_ert) %>% view()
 #   1046 - 275.5; psg stopped recording at 2:32, stopped in REM
 #   3694 - 344.5; psg stopped recording at 3:27, stopped in N2
 #   2001 - 472.5; reported to go to bed at 10:30 and wake up at 6:30, stop-recording time unknown (around 4:30 am), stopped in REM
+#   3741 - 246.5; psg stopped recording at 2:39, stopped in N2
 ## total sleep time < 200 minutes
 #   1070 - 170; took off the psg around 4 am; psg stopped recording at 11:07;
 #   1570 - 191.5; reported to go to bed around 12, have 9 hours sleep and waked up at 9:24 on 5/24 - may have taken the psg off - 2 single N2, N3 points way ahead sleep time???
 
-## other no end-recording-time cases
+
+## other no end-recording-time cases (should be fine, keep these)
 #   1581 - no end-recording time; go to bed at 11:30, stopped recording around 8:52; reported waked up at 8:50 and got up at 9 - should be fine
 #   5461 - no end-recording time; try to sleep at 9, stopped recording around 4:46; reported waked up at 4:55 and got up at 6:15 - should be fine
 
@@ -498,7 +505,7 @@ df.psg_summary <- tmp
 
 # remove problematic psg data
 df.psg_summary <- df.psg_summary %>%
-  filter(!pid %in% c("5029", "5675", "1046", "3694", "2001", "1070", "1570"))
+  filter(!pid %in% c("5029", "5675", "1046", "3694", "2001", "1070", "1570", "3741"))
 
 # mark the labels for stage
 df.psg$stage <- factor(df.psg$stage, 
@@ -1097,6 +1104,291 @@ lm(watch_arou_rating ~ psg_rem + psg_sws,
   summary()
 ```
 
+## Explorative: Trial-level models and Bayesian models
+```{r analysis: trial-level model, warning=F}
+# construct the trial-level data frame
+df.er_trial <- agg_df %>% 
+  select(participant, block, imageFile, task, intensity, 
+         NegRating.response, NegRating.responseTime,
+         ArousalRating.response, ArousalRating.responseTime) %>% 
+  mutate_at(vars(NegRating.response, NegRating.responseTime,
+                 ArousalRating.response, ArousalRating.responseTime), 
+            funs(as.numeric)) %>% 
+  rename(val_rating = NegRating.response,
+         val_RT = NegRating.responseTime,
+         arou_rating = ArousalRating.response,
+         arou_RT = ArousalRating.responseTime) %>% 
+  filter(!is.na(val_rating), !is.na(arou_rating)) # remove NA data
+
+# merge with the psg data
+df.er_trial_psg <- left_join(df.er_trial, df.psg_summary, 
+                             by = c("participant" = "pid")) %>%
+  left_join(., 
+            df.ind_diff %>% filter(Progress == 100)%>% select(partID, age, gender),
+            by = c("participant" = "partID")) %>% 
+  mutate(age = as.numeric(age),
+         stimulus = as.numeric(factor(imageFile)),
+         intensity_num = ifelse(intensity == "ntr", 0,
+                                ifelse(intensity == "low", 1,
+                                       ifelse(intensity == "mid", 2,
+                                              ifelse(intensity == "high", 3,
+                                                     NA)))))
+
+
+# build the lmer model for "watch" trials (reactivity)
+# valence rating
+mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst + 
+                        (1|participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+# model results in table
+mod_tst_lmer1 %>% tidy() %>% kable(digits = 3)
+
+mod_tst_lmer1c <- lmer(val_rating ~ intensity_num+psg_tst + 
+                        (1|participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+
+
+# arousal rating
+mod_tst_lmer2 <- lmer(arou_rating ~ intensity_num*psg_tst + 
+                        (1|participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+# model results in table
+mod_tst_lmer2 %>% tidy() %>% kable(digits = 3)
+
+mod_tst_lmer2c <- lmer(arou_rating ~ intensity_num+psg_tst + 
+                        (1|participant)+
+                        (1|stimulus), 
+                      data = df.er_trial_psg %>% filter(task == "watch"))
+
+```
+
+Model comparison results showed that there was a significant TST x intensity interaction for valence ratings in the trial-level model, $\chi^2(1) = 5.59, p = .018$. There was also a significant TST x intensity interaction for arousal ratings in the trial-level model, $\chi^2(1) = 19.82, p < .001$. 
+```{r trial-level model comparison}
+# trial-level model for valence
+anova(mod_tst_lmer1c, mod_tst_lmer1)
+# trial-level model for arousal
+anova(mod_tst_lmer2c, mod_tst_lmer2)
+```
+
+The trial-level models predictions are plotted below in comparison to the raw data points.
+```{r visualize the trial-level models}
+p_tst_lmer1 <- mod_tst_lmer1 %>% 
+  augment() %>%
+  clean_names() %>% 
+  mutate(intensity_num = factor(intensity_num, 
+                                labels = c("ntr", "low", "mid", "high"))) %>% 
+  ggplot(aes(psg_tst, fitted, color = intensity_num))+
+  geom_point(aes(y = val_rating), alpha = .1, color = "grey", 
+             position = position_jitter(width = 0, height = .1))+
+  geom_point(alpha = .1)+
+  geom_smooth(method = "lm")+
+  labs(title = "Trial-level model: valence", y = "Valence")+
+  facet_wrap(.~intensity_num, nrow = 1)+
+  theme(legend.position = "none")
+
+p_tst_lmer2 <- mod_tst_lmer2 %>% 
+  augment() %>%
+  clean_names() %>% 
+  mutate(intensity_num = factor(intensity_num, 
+                                labels = c("ntr", "low", "mid", "high"))) %>% 
+  ggplot(aes(psg_tst, fitted, color = intensity_num))+
+  geom_point(aes(y = arou_rating), alpha = .1, color = "grey", 
+             position = position_jitter(width = 0, height = .1))+
+  geom_point(alpha = .1)+
+  geom_smooth(method = "lm")+
+  labs(title = "Trial-level model: arousal", y = "Arousal")+
+  facet_wrap(.~intensity_num, nrow = 1)+
+  theme(legend.position = "none")
+
+plot_grid(p_tst_lmer1, p_tst_lmer2, ncol = 1)
+# ggsave("../../figures/trial_level_models.png", width = 8, height = 6)
+```
+
+### Bayesian models
+
+We also built the same models using Bayesian package `brms` and compute the Bayes Factor for the effect of REM and SWS. First, we built the bayesian models with TST x intensity for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective.
+```{r TST model using Bayesian brms}
+# build mod_tst1 using brms (weakly-informative prior)
+mod_tst1_brm <- brm(valence ~ psg_tst*intensity_num + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "tst1_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+mod_tst1_brm %>% plot(N = 6)
+
+# build mod_tst2 using brms (weakly-informative prior)
+mod_tst2_brm <- brm(arousal ~ psg_tst*intensity_num + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "tst2_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+mod_tst2_brm %>% plot(N = 6)
+```
+
+Second, we built the bayesian models with TST x intensity plus REM duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the REM effect.
+```{r REM model using Bayesian brms}
+# build mod_rem1 using brms (weakly-informative prior)
+mod_rem1_brm <- brm(valence ~ psg_tst*intensity_num + psg_rem + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "rem1_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+# show the posterior
+# print(mod_rem1_brm)
+# the trace plots
+plot(mod_rem1_brm, N = 7)
+
+# mod_rem1_brm %>%
+#   posterior_samples() %>%
+#   select(starts_with("b_psg_rem")) %>%
+#   gather("variable", "value") %>%
+#   ggplot(aes(y = variable, x = value))+
+#   tidybayes::geom_halfeyeh()+
+#   geom_vline(xintercept = 0, linetype = 2)+
+#   labs(title = "Model on valence")
+# ggsave("../../figures/rem_valence_posterior.png", width = 4, height = 3)
+
+
+# build mod_rem2 using brms (weakly-informative prior)
+mod_rem2_brm <- brm(arousal ~ psg_tst*intensity_num + psg_rem + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "rem2_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+# print the model results
+# print(mod_rem2_brm)
+# the trace plot
+plot(mod_rem2_brm, N = 7)
+```
+
+```{r Bayes factor: REM, message=F, results='hide'}
+# compare the rem_model with the tst_model
+# for valence
+BF_rem1 = bayes_factor(mod_rem1_brm, mod_tst1_brm)
+# for arousal
+BF_rem2 = bayes_factor(mod_rem2_brm, mod_tst2_brm)
+
+```
+```{r Bayes factor: REM2}
+# pring the BFs
+BF_rem1
+BF_rem2
+```
+
+For valence, the Bayes Factor of REM is `r BF_rem1[1] %>% as.numeric() %>% round(4)`. For arousal, the Bayes Factor of REM is `r BF_rem2[1] %>% as.numeric() %>% round(4)`. Both results provided evidence for a null effect of REM on emotional reactivity.
+
+Third, we built the bayesian models with TST x intensity plus SWS duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the SWS effect.
+```{r SWS model using Bayesian brms}
+# build mod_sws1 using brms (weakly-informative prior)
+mod_sws1_brm <- brm(valence ~ psg_tst*intensity_num + psg_sws + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "sws1_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+# # show the posterior
+# print(mod_sws1_brm)
+# # the trace plots
+plot(mod_sws1_brm, N = 7)
+
+# build mod_sws2 using brms (weakly-informative prior)
+mod_sws2_brm <- brm(arousal ~ psg_tst*intensity_num + psg_sws + (1|participant), 
+               data = df.er_psg,
+               family = gaussian,
+               save_all_pars = T,
+               file = "sws2_brm",
+               iter = 1000, warmup = 500, chains = 4, cores = 2)
+# # print the model results
+# print(mod_sws2_brm)
+# # the trace plot
+plot(mod_sws2_brm, N = 7)
+```
+
+```{r Bayes factor: SWS, message=F, results='hide'}
+# compare the rem_model with the tst_model
+# for valence
+BF_sws1 = bayes_factor(mod_sws1_brm, mod_tst1_brm)
+BF_sws1
+# for arousal
+BF_sws2 = bayes_factor(mod_sws2_brm, mod_tst2_brm)
+BF_sws2
+```
+```{r Bayes factor: SWS2}
+# pring the BFs
+BF_sws1
+BF_sws2
+```
+For arousal, the Bayes Factor of SWS is `r BF_sws1[1] %>% as.numeric() %>% round(4)`. For arousal, the Bayes Factor of SWS is `r BF_sws2[1] %>% as.numeric() %>% round(4)`. Both results provided evidence for a null effect of SWS on emotional reactivity.
+
+Finally, we built the bayesian models for understanding the effects of all sleep stages at the same time. All variables are standardized before fitting the model so that the parameter posteriors are in the same scale. The trace plots showed that the Monte Carlo sampling was effective. The model results are presented in the following tables.
+```{r sleep stages model using Bayesian brms, warning=F}
+# build mod_sleep1 using brms
+mod_sleep1_brm = brm(scale(valence)~scale(psg_n1)+scale(psg_n2)+
+                       scale(psg_sws)+scale(psg_rem)+
+                       scale(intensity_num)+(1|participant),
+                     data = df.er_psg,
+                     family = gaussian,
+                     file = "sleep1_brm",
+                     iter = 1000, warmup = 500, chains = 4, cores = 2)
+
+plot(mod_sleep1_brm, N = 8)
+# print the table
+tidy(mod_sleep1_brm) %>% 
+  filter(grepl("b_", term)) %>% 
+  kable(digits = 3)
+
+# build mod_sleep2 using brms
+mod_sleep2_brm = brm(scale(arousal) ~ ~scale(psg_n1)+scale(psg_n2)+
+                       scale(psg_sws)+scale(psg_rem)+
+                       scale(intensity_num)+(1|participant),
+                     data = df.er_psg,
+                     family = gaussian,
+                     file = "sleep2_brm",
+                     iter = 1000, warmup = 500, chains = 4, cores = 2)
+
+plot(mod_sleep2_brm, N = 8)
+# print the table
+tidy(mod_sleep2_brm) %>% 
+  filter(grepl("b_", term)) %>% 
+  kable(digits = 3)
+
+```
+
+The posterior distributions of the effects of each sleep stage on valence and arousal are presented in the figure below. Consistent with the results of the non-Bayesian models, Stage 2 sleep seemed to have the largest effect on emotional ractivity among all sleep stages.
+```{r visualize the posterior of sleep stages, warning=F}
+# plot the standardized b for each predictor
+p_sleep1_brm <- mod_sleep1_brm %>%
+  posterior_samples() %>%
+  select(starts_with("b_scale")) %>%
+  gather("variable", "value") %>%
+  ggplot(aes(y = variable, x = value))+
+  tidybayes::geom_halfeyeh()+
+  geom_vline(xintercept = 0, linetype = 2)+
+  labs(title = "Model on valence")
+
+
+# plot the standardized b for each predictor
+p_sleep2_brm <- mod_sleep2_brm %>%
+  posterior_samples() %>%
+  select(starts_with("b_scale")) %>%
+  gather("variable", "value") %>%
+  ggplot(aes(y = variable, x = value))+
+  tidybayes::geom_halfeyeh()+
+  geom_vline(xintercept = 0, linetype = 2)+
+  labs(title = "Model on arousal")
+
+plot_grid(p_sleep1_brm, p_sleep2_brm, ncol = 1)
+# ggsave("../../figures/sleep_stages_posterior.png", width = 8, height = 10)
+```
+
+
 ```{r simulation}
 # simulation dataframe
 df.simul <- df.er_psg %>% 
@@ -1161,79 +1453,6 @@ ggplot(sim_result_t,
 
 ggsave("plots/simulation_distribution.png", width = 8, height = 6)
 ```
-```{r analysis: trial-level model}
-# construct the trial-level data frame
-df.er_trial <- agg_df %>% 
-  select(participant, block, imageFile, task, intensity, 
-         NegRating.response, NegRating.responseTime,
-         ArousalRating.response, ArousalRating.responseTime) %>% 
-  mutate_at(vars(NegRating.response, NegRating.responseTime,
-                 ArousalRating.response, ArousalRating.responseTime), 
-            funs(as.numeric)) %>% 
-  rename(val_rating = NegRating.response,
-         val_RT = NegRating.responseTime,
-         arou_rating = ArousalRating.response,
-         arou_RT = ArousalRating.responseTime) %>% 
-  filter(!is.na(val_rating), !is.na(arou_rating)) # remove NA data
-
-# merge with the psg data
-df.er_trial_psg <- left_join(df.er_trial, df.psg_summary, 
-                             by = c("participant" = "pid")) %>%
-  left_join(., 
-            df.ind_diff %>% filter(Progress == 100)%>% select(partID, age, gender),
-            by = c("participant" = "partID")) %>% 
-  mutate(age = as.numeric(age),
-         stimulus = as.numeric(factor(imageFile)),
-         intensity_num = ifelse(intensity == "ntr", 0,
-                                ifelse(intensity == "low", 1,
-                                       ifelse(intensity == "mid", 2,
-                                              ifelse(intensity == "high", 3,
-                                                     NA)))))
-
-
-# df.er_trial_psg %>% glimpse()
-
-# build the lmer model for "watch" trials (reactivity)
-# valence rating
-mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst + 
-                        (1+intensity_num | participant)+
-                        (1|stimulus), 
-                      data = df.er_trial_psg %>% filter(task == "watch"))
-mod_tst_lmer1 %>% summary()
-
-mod_tst_lmer1c <- lmer(val_rating ~ intensity_num+psg_tst + 
-                        (1+intensity_num | participant)+
-                        (1|stimulus), 
-                      data = df.er_trial_psg %>% filter(task == "watch"))
-
-anova(mod_tst_lmer1c, mod_tst_lmer1)
-
-# arousal rating
-mod_tst_lmer2 <- lmer(arou_rating ~ intensity_num*psg_tst + 
-                        (1+intensity_num | participant)+
-                        (1|stimulus), 
-                      data = df.er_trial_psg %>% filter(task == "watch"))
-mod_tst_lmer2 %>% summary()
-
-mod_tst_lmer2 %>% 
-  augment() %>%
-  clean_names() %>% 
-  ggplot(aes(psg_tst, fitted, color = factor(intensity_num)))+
-  geom_point(alpha = .2)+
-  geom_smooth(method = "lm", color = "black")+
-  facet_wrap(.~intensity_num)+
-  theme(legend.position = "none")
-
-mod_tst_lmer2c <- lmer(arou_rating ~ intensity_num+psg_tst + 
-                        (1+intensity_num | participant)+
-                        (1|stimulus), 
-                      data = df.er_trial_psg %>% filter(task == "watch"))
-mod_tst_lmer2c %>% summary()
-
-anova(mod_tst_lmer2c, mod_tst_lmer2)
-
-```
-
 
 ```{r check ERP data}
 library(readxl)
