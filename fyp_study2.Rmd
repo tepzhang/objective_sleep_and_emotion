@@ -1104,7 +1104,7 @@ lm(watch_arou_rating ~ psg_rem + psg_sws,
   summary()
 ```
 
-## Explorative: Trial-level models and Bayesian models
+## Trial-level models
 ```{r analysis: trial-level model, warning=F}
 # construct the trial-level data frame
 df.er_trial <- agg_df %>% 
@@ -1133,8 +1133,10 @@ df.er_trial_psg <- left_join(df.er_trial, df.psg_summary,
                                        ifelse(intensity == "mid", 2,
                                               ifelse(intensity == "high", 3,
                                                      NA)))))
+```
 
-
+Model comparison results showed that there was a significant TST x intensity interaction for valence ratings in the trial-level model, $\chi^2(1) = 5.59, p = .018$. There was also a significant TST x intensity interaction for arousal ratings in the trial-level model, $\chi^2(1) = 19.82, p < .001$. 
+```{r trial-level model comparison}
 # build the lmer model for "watch" trials (reactivity)
 # valence rating
 mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst + 
@@ -1142,12 +1144,15 @@ mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst +
                         (1|stimulus), 
                       data = df.er_trial_psg %>% filter(task == "watch"))
 # model results in table
-mod_tst_lmer1 %>% tidy() %>% kable(digits = 3)
+# mod_tst_lmer1 %>% tidy() %>% kable(digits = 3)
 
 mod_tst_lmer1c <- lmer(val_rating ~ intensity_num+psg_tst + 
                         (1|participant)+
                         (1|stimulus), 
                       data = df.er_trial_psg %>% filter(task == "watch"))
+
+# trial-level model for valence
+anova(mod_tst_lmer1c, mod_tst_lmer1)
 
 
 # arousal rating
@@ -1156,19 +1161,13 @@ mod_tst_lmer2 <- lmer(arou_rating ~ intensity_num*psg_tst +
                         (1|stimulus), 
                       data = df.er_trial_psg %>% filter(task == "watch"))
 # model results in table
-mod_tst_lmer2 %>% tidy() %>% kable(digits = 3)
+# mod_tst_lmer2 %>% tidy() %>% kable(digits = 3)
 
 mod_tst_lmer2c <- lmer(arou_rating ~ intensity_num+psg_tst + 
                         (1|participant)+
                         (1|stimulus), 
                       data = df.er_trial_psg %>% filter(task == "watch"))
 
-```
-
-Model comparison results showed that there was a significant TST x intensity interaction for valence ratings in the trial-level model, $\chi^2(1) = 5.59, p = .018$. There was also a significant TST x intensity interaction for arousal ratings in the trial-level model, $\chi^2(1) = 19.82, p < .001$. 
-```{r trial-level model comparison}
-# trial-level model for valence
-anova(mod_tst_lmer1c, mod_tst_lmer1)
 # trial-level model for arousal
 anova(mod_tst_lmer2c, mod_tst_lmer2)
 ```
@@ -1204,8 +1203,72 @@ p_tst_lmer2 <- mod_tst_lmer2 %>%
   theme(legend.position = "none")
 
 plot_grid(p_tst_lmer1, p_tst_lmer2, ncol = 1)
-# ggsave("../../figures/trial_level_models.png", width = 8, height = 6)
+# ggsave("plots/trial_level_models.png", width = 8, height = 6)
 ```
+```{r trial model: ordered logit}
+
+# factorize valence and arousal rating
+df.er_trial_psg <- df.er_trial_psg %>% 
+  ungroup() %>% 
+  mutate(val_rating_factored = factor(val_rating),
+         arou_rating_factored = factor(arou_rating))
+
+# valence
+mod_tst1_brm_trial <- brm(val_rating ~ psg_tst*intensity_num +
+                      (1|participant)+
+                      (1|stimulus), 
+                    data = df.er_trial_psg %>% filter(task == "watch"), 
+                    family = cumulative,
+                    save_all_pars = T,
+                    file = "tst_brm_trial1",
+                    iter = 2000, warmup = 500, chains = 4, cores = 2)
+#mod_tst1_brm_trial %>% plot(N = 4)
+
+# arousal
+mod_tst2_brm_trial <- brm(arou_rating ~ psg_tst*intensity_num +
+                      (1|participant)+
+                      (1|stimulus), 
+                    data = df.er_trial_psg %>% filter(task == "watch"), 
+                    family = cumulative,
+                    save_all_pars = T,
+                    file = "tst_brm_trial2",
+                    iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+```
+
+```{r visualize the trial-level clmm models}
+ggplot(df.er_trial_psg, aes(psg_tst, val_rating))+
+  geom_bar(aes(fill = val_rating_factored),
+           stat = "identity")+
+  # geom_area(fill = "#eaac9e",
+  #           color = "black",
+  #           size = 0.2)+
+  # geom_ribbon(aes(ymin = val_rating, ymax = 1),
+  #             fill = "#92bbd1",
+  #             color = "black",
+  #             size = 0.2)+
+  facet_wrap(.~ intensity)
+
+
+p_tst1_brm_trial <- mod_tst1_brm_trial %>% 
+  broom.mixed::augment() %>%
+  clean_names() %>% 
+  mutate(intensity_num = factor(intensity_num, 
+                                labels = c("ntr", "low", "mid", "high"))) %>% 
+  ggplot(aes(psg_tst, fitted, color = intensity_num))+
+  geom_point(aes(y = val_rating), alpha = .1, color = "grey", 
+             position = position_jitter(width = 0, height = .1))+
+  geom_point(alpha = .1)+
+  geom_smooth(method = "lm")+
+  labs(title = "Trial-level model: valence", y = "Valence")+
+  facet_wrap(.~intensity_num, nrow = 1)+
+  theme(legend.position = "none")
+
+plot_grid(p_tst_lmer1, p_tst_lmer2, ncol = 1)
+# ggsave("plots/trial_level_models.png", width = 8, height = 6)
+```
+
+
 
 ### Bayesian models
 
