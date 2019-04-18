@@ -1044,25 +1044,27 @@ anova(mod_sws5, mod_sws6)
 ```
 ```{r analyses: TST and ER-task linear models}
 ## interaction
-
-
-mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num + (1|participant), 
+mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num +
+                   (1+intensity_num|participant), 
                data = df.er_psg)
 # lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
 #                data = df.er_psg) %>% summary()
 
-mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num + (1|participant), 
+mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num +
+                    (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_tst4c, mod_tst4)
 
 
 
-mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num + (1|participant), 
+mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num +
+                   (1+intensity_num|participant), 
                data = df.er_psg) 
 # lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
 #                data = df.er_psg) %>% summary()
 
-mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num + (1|participant), 
+mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num +
+                    (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_tst3c, mod_tst3)
 
@@ -1070,26 +1072,39 @@ anova(mod_tst3c, mod_tst3)
 p_tst_mod1 <- mod_tst4 %>% 
   augment()  %>% 
   clean_names() %>% 
+  mutate(intensity = ifelse(intensity_num == 0, "ntr",
+                            ifelse(intensity_num == 1, "low",
+                                   ifelse(intensity_num == 2, "mid",
+                                          "high"))),
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high"))) %>% 
   ggplot(aes(psg_tst, watch_val_rating, color = as.factor(intensity_num))) +
-  geom_point(alpha = .1)+
+  geom_point(alpha = .3, color = "grey")+
   geom_point(aes(y = fitted), alpha = .5)+
   geom_smooth(aes(y = fitted), method = "lm", se = F)+
-  labs(title = "model prediction: TST and valence-reactivity")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "model prediction: TST and valence-reactivity",
+       x = "total sleep time")+
   theme(legend.position = "none")
 
 p_tst_mod2 <- mod_tst3 %>% 
   augment()  %>% 
   clean_names() %>% 
+  mutate(intensity = ifelse(intensity_num == 0, "ntr",
+                            ifelse(intensity_num == 1, "low",
+                                   ifelse(intensity_num == 2, "mid",
+                                          "high"))),
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high"))) %>% 
   ggplot(aes(psg_tst, watch_arou_rating, color = as.factor(intensity_num))) +
-  geom_point(alpha = .1)+
+  geom_point(alpha = .3, color = "grey")+
   geom_point(aes(y = fitted), alpha = .5)+
   geom_smooth(aes(y = fitted), method = "lm", se = F)+
-  labs(title = "model prediction: TST and arousal-reactivity")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "model prediction: TST and arousal-reactivity",
+       x = "total sleep time")+
   theme(legend.position = "none")
 
-plot_grid(p_tst_mod1, p_tst_mod2)
-ggsave("plots/tst-reactivity models.png", width = 10, height = 5)
-
+plot_grid(p_tst_mod1, p_tst_mod2, ncol = 1)
+ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
 ```
 
 
@@ -1136,7 +1151,7 @@ df.er_trial_psg <- left_join(df.er_trial, df.psg_summary,
 ```
 
 Model comparison results showed that there was a significant TST x intensity interaction for valence ratings in the trial-level model, $\chi^2(1) = 5.59, p = .018$. There was also a significant TST x intensity interaction for arousal ratings in the trial-level model, $\chi^2(1) = 19.82, p < .001$. 
-```{r trial-level model comparison}
+```{r trial-level model: Gaussian family}
 # build the lmer model for "watch" trials (reactivity)
 # valence rating
 mod_tst_lmer1 <- lmer(val_rating ~ intensity_num*psg_tst + 
@@ -1223,6 +1238,9 @@ mod_tst1_brm_trial <- brm(val_rating ~ psg_tst*intensity_num +
                     file = "tst_brm_trial1",
                     iter = 2000, warmup = 500, chains = 4, cores = 2)
 #mod_tst1_brm_trial %>% plot(N = 4)
+mod_tst1_brm_trial %>% 
+  augment() %>% 
+  view()
 
 # arousal
 mod_tst2_brm_trial <- brm(arou_rating ~ psg_tst*intensity_num +
@@ -1233,7 +1251,7 @@ mod_tst2_brm_trial <- brm(arou_rating ~ psg_tst*intensity_num +
                     save_all_pars = T,
                     file = "tst_brm_trial2",
                     iter = 2000, warmup = 500, chains = 4, cores = 2)
-
+#mod_tst2_brm_trial %>% plot(N = 4)
 ```
 
 ```{r visualize the trial-level clmm models}
