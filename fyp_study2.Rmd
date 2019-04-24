@@ -237,7 +237,7 @@ df.ER_ind <-  agg_df %>%
   filter(!is.nan(NegRating.response), !is.nan(ArousalRating.response)) # some participants have no response and should be removed, e.g. 3032
 
 df.ER_ind$task <- factor(df.ER_ind$task, levels=c('watch', 'reappraise','distract'), ordered=TRUE)
-df.ER_ind$intensity <- factor(df.ER_ind$intensity, levels=c('high', 'mid','low', 'ntr'), ordered=TRUE)
+df.ER_ind$intensity <- factor(df.ER_ind$intensity, levels = c("ntr", "low", "mid", "high"), ordered=TRUE)
 
 
 ################### change scores ####################
@@ -533,13 +533,24 @@ df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary,
                        by = c("participant" = "pid"))
 
 # read individual difference data
-df.ind_diff <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/raw/SBER1_inddiff_December_3_2018_20.54.csv")
+df.ind_diff <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/", 
+                        "processed/FinalDATA104.csv", sep = ""))
 
 # add gender and age
-df.er_psg <- left_join(df.er_psg, df.ind_diff %>% filter(Progress == 100)
-                         %>% select(partID, age, gender),
-                       by = c("participant" = "partID"))
-df.er_psg$age <- as.numeric(df.er_psg$age)
+df.er_psg <- df.er_psg %>% 
+  left_join(df.ind_diff %>% 
+              select(partID, age, gender, hourssleep_Hours),
+            by = c("participant" = "partID")) %>% 
+  rename(psqi_sleep_hours = hourssleep_Hours) %>% 
+  mutate(age = as.numeric(age))
+
+# recode the intensity into order ranking
+df.er_psg <- df.er_psg %>% 
+  mutate(intensity_num = ifelse(intensity == "ntr", 0,
+                                ifelse(intensity == "low", 1,
+                                       ifelse(intensity == "mid", 2,
+                                              ifelse(intensity == "high", 3,
+                                                     NA)))))
 
 # check how many participants in df.er_psg have complete data
 df.er_psg %>% 
@@ -550,7 +561,6 @@ df.er_psg %>%
 # check wparticipants who have psg data but not session 2 ER data
 df.psg_summary$pid[!df.psg_summary$pid %in% df.ER_ind_wide$participant]
 # 1061 - only 75 trials in ER task
-# 1070 - no session 2 data
 # 1152 - only 76 trials in ER task
 # 1574 - 2 data files, did the first block twice
 # 3026 - no IER task data
@@ -952,6 +962,7 @@ with(df.er_psg %>% filter(intensity == "low"),
 with(df.er_psg %>% filter(intensity == "mid", psg_rem > 0),
      cor.test(psg_tst, reappraise_arou_change))
 ```
+
 ```{r analysis: REM and ER-task linear models}
 ## DV: valence rating ####
 mod_tst1 <- lm(watch_val_rating ~ psg_tst, 
@@ -973,17 +984,11 @@ plot(mod_rem2_BF)
 
 ## interaction effect
 
-# recode the intensity into order ranking
-df.er_psg <- df.er_psg %>% 
-  mutate(intensity_num = ifelse(intensity == "ntr", 0,
-                                ifelse(intensity == "low", 1,
-                                       ifelse(intensity == "mid", 2,
-                                              ifelse(intensity == "high", 3,
-                                                     NA)))))
-
-mod_rem3 <- lmer(watch_val_rating ~ psg_rem+intensity_num + (1|participant), 
+mod_rem3 <- lmer(watch_val_rating ~ psg_rem+intensity_num + 
+                   (1+intensity_num|participant), 
                data = df.er_psg )
-mod_rem4 <- lmer(watch_val_rating ~ psg_rem*intensity_num + (1|participant), 
+mod_rem4 <- lmer(watch_val_rating ~ psg_rem*intensity_num + 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_rem3, mod_rem4)
 
@@ -1002,9 +1007,11 @@ mod_rem6 <- lm(watch_arou_rating ~ psg_tst + psg_rem,
 summary(mod_rem6)
 
 ## interaction effect
-mod_rem7 <- lmer(watch_arou_rating ~ psg_rem+intensity_num+ (1|participant), 
+mod_rem7 <- lmer(watch_arou_rating ~ psg_rem+intensity_num+ 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
-mod_rem8 <- lmer(watch_arou_rating ~ psg_rem*intensity_num+ (1|participant), 
+mod_rem8 <- lmer(watch_arou_rating ~ psg_rem*intensity_num+ 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_rem7, mod_rem8)
 ```
@@ -1020,9 +1027,11 @@ mod_sws7 <- lm(watch_val_rating ~ psg_sws + psg_tst,
 summary(mod_sws7)
 
 # interaction
-mod_sws2 <- lmer(watch_val_rating ~ psg_sws+intensity_num + (1|participant), 
+mod_sws2 <- lmer(watch_val_rating ~ psg_sws+intensity_num + 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
-mod_sws3 <- lmer(watch_val_rating ~ psg_sws*intensity_num + (1|participant), 
+mod_sws3 <- lmer(watch_val_rating ~ psg_sws*intensity_num + 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_sws2, mod_sws3)
 
@@ -1036,33 +1045,29 @@ mod_sws8 <- lm(watch_val_rating ~ psg_sws + psg_tst,
 summary(mod_sws8)
 
 # interaction
-mod_sws5 <- lmer(watch_arou_rating ~ psg_sws+intensity_num + (1|participant), 
+mod_sws5 <- lmer(watch_arou_rating ~ psg_sws+intensity_num +
+                   (1+intensity_num|participant), 
                data = df.er_psg)
-mod_sws6 <- lmer(watch_arou_rating ~ psg_sws*intensity_num + (1|participant), 
+mod_sws6 <- lmer(watch_arou_rating ~ psg_sws*intensity_num + 
+                   (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_sws5, mod_sws6)
 ```
+
 ```{r analyses: TST and ER-task linear models}
 ## interaction
-mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num +
-                   (1+intensity_num|participant), 
-               data = df.er_psg)
-# lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
-#                data = df.er_psg) %>% summary()
-
+mod_tst4 <- lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg) # %>% summary()
 mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num +
                     (1+intensity_num|participant), 
                data = df.er_psg)
 anova(mod_tst4c, mod_tst4)
 
 
-
-mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num +
-                   (1+intensity_num|participant), 
-               data = df.er_psg) 
-# lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) + (1|participant),
-#                data = df.er_psg) %>% summary()
-
+mod_tst3 <- lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg) %>% summary()
 mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num +
                     (1+intensity_num|participant), 
                data = df.er_psg)
@@ -1106,6 +1111,63 @@ p_tst_mod2 <- mod_tst3 %>%
 plot_grid(p_tst_mod1, p_tst_mod2, ncol = 1)
 ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
 ```
+
+```{r check the stability of TST}
+# correlation between psg_tst and psqi_sleep_durations
+p_tst_stability1 <- ggplot(df.er_psg %>% filter(intensity == "high"), 
+       aes(psg_tst, psqi_sleep_hours*60))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  geom_abline(slope = 1, intercept = 0, linetype = 2)
+
+cor.test((df.er_psg%>% filter(intensity == "high"))$psg_tst, 
+         (df.er_psg%>% filter(intensity == "high"))$psqi_sleep_hours)
+
+#read diary data
+df.diary <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/diary_Qualtrics",
+                     "/processed/processed_ready_for_analysis/etidata_012919.csv",
+                     sep = "")) %>% 
+  filter(self_tst_min > 0, self_tst_min < 16*60)
+
+df.diary_summary <- df.diary %>% 
+  group_by(ID) %>% 
+  summarise(diary_tst_mean = mean(self_tst_min),
+            diary_tst_sd = sd(self_tst_min),
+            diary_n_days = n(),
+            diary_tst_ci = 1.96*diary_tst_sd/sqrt(n())) %>% 
+  mutate(ID = as.character(ID))
+
+df.er_psg_diary <- df.er_psg %>% 
+  left_join(df.diary_summary, by = c("participant" = "ID"))
+
+# correlation between psg_tst and average diary_tst
+p_tst_stability2 <- ggplot(df.er_psg_diary %>% filter(intensity == "high"), 
+       aes(psg_tst, diary_tst_mean))+
+  geom_linerange(aes(ymax = diary_tst_mean + diary_tst_ci, 
+                     ymin= diary_tst_mean - diary_tst_ci),
+                 alpha = .5)+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  # xlim(300, 550)+ ylim(300, 550)+
+  geom_abline(slope = 1, intercept = 0, linetype = 2)
+
+# correlation between psqi_sleep_duration and average diary_tst
+p_tst_stability3 <- ggplot(df.er_psg_diary %>% filter(intensity == "high"), 
+       aes(psqi_sleep_hours*60, diary_tst_mean))+
+  geom_pointrange(aes(ymax = diary_tst_mean + diary_tst_ci, 
+                     ymin= diary_tst_mean - diary_tst_ci),
+                 alpha = .5,
+                 size = .25,
+                 position = position_jitter(height = 0, width = 20))+
+  # geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  geom_abline(slope = 1, intercept = 0, linetype = 2)
+
+plot_grid(p_tst_stability2, p_tst_stability1, p_tst_stability3)
+# ggsave("plots/tst_stability.png", width = 8, height = 6)
+```
+
+
 
 
 ```{r analysis: REM vs. SWS}
@@ -1293,37 +1355,41 @@ plot_grid(p_tst_lmer1, p_tst_lmer2, ncol = 1)
 We also built the same models using Bayesian package `brms` and compute the Bayes Factor for the effect of REM and SWS. First, we built the bayesian models with TST x intensity for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective.
 ```{r TST model using Bayesian brms}
 # build mod_tst1 using brms (weakly-informative prior)
-mod_tst1_brm <- brm(valence ~ psg_tst*intensity_num + (1|participant), 
-               data = df.er_psg,
+mod_tst1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "tst1_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
-mod_tst1_brm %>% plot(N = 6)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+#mod_tst1_brm %>% plot(N = 6)
 
 # build mod_tst2 using brms (weakly-informative prior)
-mod_tst2_brm <- brm(arousal ~ psg_tst*intensity_num + (1|participant), 
-               data = df.er_psg,
+mod_tst2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "tst2_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
-mod_tst2_brm %>% plot(N = 6)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+#mod_tst2_brm %>% plot(N = 6)
 ```
 
 Second, we built the bayesian models with TST x intensity plus REM duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the REM effect.
 ```{r REM model using Bayesian brms}
 # build mod_rem1 using brms (weakly-informative prior)
-mod_rem1_brm <- brm(valence ~ psg_tst*intensity_num + psg_rem + (1|participant), 
-               data = df.er_psg,
+mod_rem1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+                      scale(psg_rem) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "rem1_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
 # show the posterior
 # print(mod_rem1_brm)
 # the trace plots
-plot(mod_rem1_brm, N = 7)
+# plot(mod_rem1_brm, N = 7)
 
 # mod_rem1_brm %>%
 #   posterior_samples() %>%
@@ -1337,16 +1403,18 @@ plot(mod_rem1_brm, N = 7)
 
 
 # build mod_rem2 using brms (weakly-informative prior)
-mod_rem2_brm <- brm(arousal ~ psg_tst*intensity_num + psg_rem + (1|participant), 
-               data = df.er_psg,
+mod_rem2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+                      scale(psg_rem) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "rem2_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
 # print the model results
 # print(mod_rem2_brm)
 # the trace plot
-plot(mod_rem2_brm, N = 7)
+# plot(mod_rem2_brm, N = 7)
 ```
 
 ```{r Bayes factor: REM, message=F, results='hide'}
@@ -1368,28 +1436,32 @@ For valence, the Bayes Factor of REM is `r BF_rem1[1] %>% as.numeric() %>% round
 Third, we built the bayesian models with TST x intensity plus SWS duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the SWS effect.
 ```{r SWS model using Bayesian brms}
 # build mod_sws1 using brms (weakly-informative prior)
-mod_sws1_brm <- brm(valence ~ psg_tst*intensity_num + psg_sws + (1|participant), 
-               data = df.er_psg,
+mod_sws1_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                      scale(psg_sws) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "sws1_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
 # # show the posterior
 # print(mod_sws1_brm)
 # # the trace plots
-plot(mod_sws1_brm, N = 7)
+# plot(mod_sws1_brm, N = 7)
 
 # build mod_sws2 using brms (weakly-informative prior)
-mod_sws2_brm <- brm(arousal ~ psg_tst*intensity_num + psg_sws + (1|participant), 
-               data = df.er_psg,
+mod_sws2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                      scale(psg_sws) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
                family = gaussian,
                save_all_pars = T,
                file = "sws2_brm",
-               iter = 1000, warmup = 500, chains = 4, cores = 2)
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
 # # print the model results
 # print(mod_sws2_brm)
 # # the trace plot
-plot(mod_sws2_brm, N = 7)
+# plot(mod_sws2_brm, N = 7)
 ```
 
 ```{r Bayes factor: SWS, message=F, results='hide'}
@@ -1411,34 +1483,36 @@ For arousal, the Bayes Factor of SWS is `r BF_sws1[1] %>% as.numeric() %>% round
 Finally, we built the bayesian models for understanding the effects of all sleep stages at the same time. All variables are standardized before fitting the model so that the parameter posteriors are in the same scale. The trace plots showed that the Monte Carlo sampling was effective. The model results are presented in the following tables.
 ```{r sleep stages model using Bayesian brms, warning=F}
 # build mod_sleep1 using brms
-mod_sleep1_brm = brm(scale(valence)~scale(psg_n1)+scale(psg_n2)+
+mod_sleep1_brm = brm(scale(watch_val_rating)~scale(psg_n1)+scale(psg_n2)+
                        scale(psg_sws)+scale(psg_rem)+
-                       scale(intensity_num)+(1|participant),
-                     data = df.er_psg,
+                       scale(intensity_num) + 
+                       (1+intensity_num|participant),
+                     data = df.er_psg %>% filter(!is.na(psg_tst)),
                      family = gaussian,
                      file = "sleep1_brm",
-                     iter = 1000, warmup = 500, chains = 4, cores = 2)
+                     iter = 2000, warmup = 500, chains = 4, cores = 2)
 
-plot(mod_sleep1_brm, N = 8)
-# print the table
-tidy(mod_sleep1_brm) %>% 
-  filter(grepl("b_", term)) %>% 
-  kable(digits = 3)
+# plot(mod_sleep1_brm, N = 8)
+# # print the table
+# tidy(mod_sleep1_brm) %>% 
+#   filter(grepl("b_", term)) %>% 
+#   kable(digits = 3)
 
 # build mod_sleep2 using brms
-mod_sleep2_brm = brm(scale(arousal) ~ ~scale(psg_n1)+scale(psg_n2)+
+mod_sleep2_brm = brm(scale(watch_arou_rating) ~ ~scale(psg_n1)+scale(psg_n2)+
                        scale(psg_sws)+scale(psg_rem)+
-                       scale(intensity_num)+(1|participant),
-                     data = df.er_psg,
+                       scale(intensity_num)+
+                       (1+intensity_num|participant),
+                     data = df.er_psg %>% filter(!is.na(psg_tst)),
                      family = gaussian,
                      file = "sleep2_brm",
-                     iter = 1000, warmup = 500, chains = 4, cores = 2)
+                     iter = 2000, warmup = 500, chains = 4, cores = 2)
 
-plot(mod_sleep2_brm, N = 8)
-# print the table
-tidy(mod_sleep2_brm) %>% 
-  filter(grepl("b_", term)) %>% 
-  kable(digits = 3)
+# plot(mod_sleep2_brm, N = 8)
+# # print the table
+# tidy(mod_sleep2_brm) %>% 
+#   filter(grepl("b_", term)) %>% 
+#   kable(digits = 3)
 
 ```
 
@@ -1654,7 +1728,7 @@ ggsave("plots/LPP amplitudes.png", width = 8, height = 6)
 ```{r Check EMG data}
 emg_path = "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/results/emg_results"
 emg_files <- list.files(emg_path, full.names = T)
-emg_files <- emg_files[grep("SBER.EMG_Corr.[0-9]{4}.*txt$", emg_files)]
+emg_files <- emg_files[grep("SBER.EMG_Corr.long.[0-9]{4}.*txt$", emg_files)]
 
 # extract the participant numbers
 emg_pids = str_sub(emg_files, str_length(emg_files) - 7, str_length(emg_files) - 4)
@@ -1664,20 +1738,22 @@ list.emg <- map(emg_files, ~ read.csv(file = .x, header = F, sep = "\t"))
 
 #view(list.emg[[1]])
 # create the combind dataframe
-df.emg <- bind_rows(list.emg[1:66])
+df.emg <- bind_rows(list.emg[1:length(list.emg)])
 # add variable names
 names(df.emg) <- c("participant", "task", "trial", "time_segment", "emg_corr")
-df.emg$participant <- factor(df.emg$participant)
-df.emg$task <- factor(df.emg$task, levels = c("Watch", "Rethink", "Distract"))
-
+df.emg <- df.emg %>% 
+  filter(time_segment <= 9) %>% # only need the first 9 seconds
+  mutate(participant = factor(participant),
+         task = factor(task, levels = c("Watch", "Rethink", "Distract")))
 
 # check the distribution of data
+# quantile plot
 emg.quantile = quantile(df.emg$emg_corr, probs = seq(0, 1, .01))
 plot(emg.quantile)
 title("EMG quantile")
 abline(h = 20, lty = 2)
 text(x = 90, y = 25, "EMG = 20")
-
+# raw data points
 ggplot(df.emg, aes(participant, emg_corr))+
   geom_point(alpha = .2, 
              shape = 20, 
@@ -1700,10 +1776,11 @@ df.emg_summary = df.emg %>%
                 group_by(participant, task) %>% 
                 summarise(emg_corr = mean(emg_corr))
 
-ggplot(df.emg, aes(task, emg_corr, 
-                   group = participant, color = participant))+
+# plot violin distribution
+ggplot(df.emg,aes(task, emg_corr, 
+                  group = participant, color = participant))+
   geom_violin(df.emg_summary,
-              aes(group = NULL),
+              mapping = aes(group = NULL),
               color = "black",
               fill = "white")+
   stat_summary(fun.y = "mean",
@@ -1729,8 +1806,9 @@ ggplot(df.emg, aes(task, emg_corr,
 
 ggsave("plots/emg_distribution.png", width = 8, height = 6)
 
-
-ggplot(df.emg, aes(time_segment, emg_corr,
+# plot temporal change in a trial
+ggplot(df.emg ,
+       aes(time_segment, emg_corr,
                    group = participant, color = participant))+
   stat_summary(fun.y = "mean",
                geom = "line",
@@ -1757,7 +1835,7 @@ ggplot(df.emg, aes(time_segment, emg_corr,
                fun.y = "mean",
                geom = "line")+
   labs(title = "Time change of EMG in a trial", x = "time (s)")+
-  xlim(0, 6)+
+  xlim(0, 9)+
   theme(legend.position = "none")
 
 ggsave("plots/emg_time_change.png", width = 8, height = 6)
@@ -1767,11 +1845,176 @@ ggsave("plots/emg_time_change.png", width = 8, height = 6)
 df.emg_summary %>% filter(emg_corr > 10)
 df.emg_summary %>% filter(participant == 1581)
 ```
+```{r process EMG data}
+# calculate the percentage change compared to the baseline (first 3 seconds)
+df.emg_trial <- df.emg %>% 
+  mutate(picture_on = ifelse(time_segment > 3, "corr_picture", "corr_baseline")) %>% 
+  group_by(participant, trial, task, picture_on) %>% 
+  summarise(emg_corr = mean(emg_corr)) %>% 
+  spread(picture_on, emg_corr) %>% 
+  ungroup() %>% 
+  mutate(emg_corr_change = (corr_picture - corr_baseline)/corr_baseline)
+
+# remove participants who had less than 100 trials
+df.emg_trial <- df.emg_trial %>% 
+  group_by(participant) %>% 
+  mutate(n_trial = n()) %>% 
+  filter(n_trial > 100) %>% #1061, 1152, 5767 were filtered out
+  mutate(task = tolower(task),
+         task = gsub("rethink", "reappraise", task))
+
+# check the number of trials in ER_task data and the EMG data
+df.emg_trial %>% 
+  group_by(participant) %>% 
+  summarise(n_trial_emg = n()) %>% 
+  left_join(agg_df %>% 
+              group_by(participant) %>% 
+              summarise(n_trial_task = n()),
+            by = "participant") %>% 
+  mutate(n_diff = n_trial_emg - n_trial_task)
+
+
+# match the trials
+df.emg_trial_matched <-  df.emg_trial %>% 
+  left_join(agg_df %>% 
+              select(participant, intensity, task) %>% 
+              mutate(trial = row_number()) %>% 
+              rename(task_er = task),
+            by = c("participant", "trial")) %>% 
+  mutate(match = task == task_er,
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high")),
+         task = factor(task, levels = c("watch", "reappraise", "distract")))
+
+# check the match
+df.emg_trial_matched$match %>% unique() # all matched
+
+# plot the distribution of trial_level emg_change
+ggplot(df.emg_trial_matched, aes(participant, emg_corr_change))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs("EMG percent change for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+ggsave("plots/emg_percent_change_raw_points.png", width = 8, height = 6)
+
+df.emg_trial_matched <- df.emg_trial_matched %>% 
+  filter(emg_corr_change < 15,
+         participant != "5446") #only noise in EMG data
+
+# average across trials
+df.emg_ind <- df.emg_trial_matched %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(emg_corr_change = mean(emg_corr_change)) %>% 
+  spread(task, emg_corr_change) %>% 
+  rename(emg_change_watch = watch,
+         emg_change_reappraise = reappraise,
+         emg_change_distract = distract)
+
+# plot the distribution of EMG percent change
+df.emg_trial_matched %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(emg_corr_change = mean(emg_corr_change)) %>% 
+  ggplot(aes(intensity, emg_corr_change,
+             color = participant))+
+  geom_violin(color = "black",
+              fill = "white")+
+  geom_point(aes(group = participant), alpha = .3)+
+  geom_line(aes(group = participant), alpha = .3)+
+  stat_summary(size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  facet_wrap(.~task)+
+  labs(title = "Corrugator EMG change from baseline")+
+  theme(legend.position = "none")
+
+ggsave("plots/emg_percent_change_distribution.png", width = 8, height = 6)
+
+# merge the individual-level emg data with the ER_psg data
+df.er_psg_emg <- df.er_psg %>% 
+  left_join(df.emg_ind, by = c("participant", "intensity"))
+
+# check who had ER behavioral data but not emg data
+list_no_emg <- (df.er_psg_emg %>% 
+  filter(is.na(emg_change_watch)) %>% 
+  select(participant) %>% 
+  unique())$participant
+
+gs_data_check %>% 
+  select(`Participant ID`, IER, `physiology files `) %>% 
+  filter(`Participant ID` %in% list_no_emg) %>% 
+  arrange(`Participant ID`) %>% 
+  filter(`physiology files ` != "N",
+         !`Participant ID` %in% c(1061, 1152, 5767, 5446)) %>% #these were excluded 
+  view()
+```
+
+```{r analysis: TST and EMG reactivity}
+mod_tst5 <- lmer(emg_change_watch ~ psg_tst*intensity_num +
+                   (1+intensity_num|participant), 
+               data = df.er_psg_emg) # %>% summary()
+# standardized coeffcients
+lmerTest::lmer(scale(emg_change_watch) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_emg) %>% summary()
+
+mod_tst5c <- lmer(emg_change_watch ~ psg_tst + intensity_num +
+                    (1+intensity_num|participant), 
+               data = df.er_psg_emg)
+anova(mod_tst5c, mod_tst5)
+
+# plot the model
+mod_tst5 %>% 
+  augment()  %>% 
+  clean_names() %>% 
+  mutate(intensity = ifelse(intensity_num == 0, "ntr",
+                            ifelse(intensity_num == 1, "low",
+                                   ifelse(intensity_num == 2, "mid",
+                                          "high"))),
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high"))) %>% 
+  ggplot(aes(psg_tst, emg_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3, color = "grey")+
+  geom_point(aes(y = fitted), alpha = .5)+
+  geom_smooth(aes(y = fitted), method = "lm", se = F)+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "model prediction: TST and EMG corrugator-reactivity",
+       x = "total sleep time")+
+  theme(legend.position = "none")
+ggsave("plots/tst-emg models.png", width = 9, height = 6)
+```
+
+```{r visualization: REM, SWS and EMG reactivity}
+p_rem_emg <- ggplot(df.er_psg_emg,
+       aes(psg_rem, emg_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "REM and EMG corrugator-reactivity",
+       x = "REM sleep time")+
+  theme(legend.position = "none")
+
+p_sws_emg <- ggplot(df.er_psg_emg,
+       aes(psg_sws, emg_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "SWS and EMG corrugator-reactivity",
+       x = "SWS time")+
+  theme(legend.position = "none")
+
+plot_grid(p_rem_emg, p_sws_emg, ncol = 1)
+ggsave("plots/emg_rem_sws.png", width = 9, height = 6)
+```
 
 
 ```{r save workspace}
-save.image('C:/Users/tepzh/Dropbox/Stanford/FYP/fyp_study2/data/workspace_fyp_study2.Rdata')
-
+save.image('data/workspace_fyp_study2.Rdata')
 ```
-
 
