@@ -1167,7 +1167,28 @@ plot_grid(p_tst_stability2, p_tst_stability1, p_tst_stability3)
 # ggsave("plots/tst_stability.png", width = 8, height = 6)
 ```
 
+```{r visualization: habitual sleep and reactivity}
+p_diary_tst1 <- ggplot(df.er_psg_diary, 
+       aes(diary_tst_mean, watch_val_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "Diary sleep and valence-reactivity",
+       x = "total sleep time")+
+  theme(legend.position = "none")
 
+p_diary_tst2 <- ggplot(df.er_psg_diary, 
+       aes(diary_tst_mean, watch_arou_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "Diary sleep and arousal-reactivity",
+       x = "total sleep time")+
+  theme(legend.position = "none")
+
+plot_grid(p_diary_tst1, p_diary_tst2, ncol = 1)
+ggsave("plots/diary_tst_reactivity.png", width = 9, height = 6)
+```
 
 
 ```{r analysis: REM vs. SWS}
