@@ -1173,8 +1173,8 @@ p_diary_tst1 <- ggplot(df.er_psg_diary,
   geom_point(alpha = .3)+
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
-  labs(title = "Diary sleep and valence-reactivity",
-       x = "total sleep time")+
+  labs(title = "diary sleep and valence-reactivity",
+       x = "diary average sleep time")+
   theme(legend.position = "none")
 
 p_diary_tst2 <- ggplot(df.er_psg_diary, 
@@ -1182,8 +1182,8 @@ p_diary_tst2 <- ggplot(df.er_psg_diary,
   geom_point(alpha = .3)+
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
-  labs(title = "Diary sleep and arousal-reactivity",
-       x = "total sleep time")+
+  labs(title = "diary sleep and arousal-reactivity",
+       x = "diary average sleep time")+
   theme(legend.position = "none")
 
 plot_grid(p_diary_tst1, p_diary_tst2, ncol = 1)
