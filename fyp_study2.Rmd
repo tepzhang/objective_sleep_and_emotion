@@ -990,6 +990,9 @@ mod_rem3 <- lmer(watch_val_rating ~ psg_rem+intensity_num +
 mod_rem4 <- lmer(watch_val_rating ~ psg_rem*intensity_num + 
                    (1+intensity_num|participant), 
                data = df.er_psg)
+# lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_rem)*scale(intensity_num) + 
+#                    (1+scale(intensity_num)|participant), 
+#                data = df.er_psg %>% filter(psg_rem > 0, psg_sws > 0)) %>% summary()
 anova(mod_rem3, mod_rem4)
 
 
@@ -1013,6 +1016,9 @@ mod_rem7 <- lmer(watch_arou_rating ~ psg_rem+intensity_num+
 mod_rem8 <- lmer(watch_arou_rating ~ psg_rem*intensity_num+ 
                    (1+intensity_num|participant), 
                data = df.er_psg)
+# lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_rem)*scale(intensity_num) + 
+#                    (1+scale(intensity_num)|participant), 
+#                data = df.er_psg %>% filter(psg_rem > 0, psg_sws > 0)) %>% summary()
 anova(mod_rem7, mod_rem8)
 ```
 
@@ -1033,6 +1039,9 @@ mod_sws2 <- lmer(watch_val_rating ~ psg_sws+intensity_num +
 mod_sws3 <- lmer(watch_val_rating ~ psg_sws*intensity_num + 
                    (1+intensity_num|participant), 
                data = df.er_psg)
+# lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_sws)*scale(intensity_num) + 
+#                    (1+scale(intensity_num)|participant), 
+#                data = df.er_psg %>% filter(psg_rem > 0, psg_sws > 0)) %>% summary()
 anova(mod_sws2, mod_sws3)
 
 ## DV: arousal ratings ####
@@ -1051,6 +1060,9 @@ mod_sws5 <- lmer(watch_arou_rating ~ psg_sws+intensity_num +
 mod_sws6 <- lmer(watch_arou_rating ~ psg_sws*intensity_num + 
                    (1+intensity_num|participant), 
                data = df.er_psg)
+# lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_sws)*scale(intensity_num) +
+#                    (1+scale(intensity_num)|participant),
+#                data = df.er_psg %>% filter(psg_rem > 0, psg_sws > 0)) %>% summary()
 anova(mod_sws5, mod_sws6)
 ```
 
