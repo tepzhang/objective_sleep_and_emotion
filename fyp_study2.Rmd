@@ -1168,6 +1168,7 @@ plot_grid(p_tst_stability2, p_tst_stability1, p_tst_stability3)
 ```
 
 ```{r visualization: habitual sleep and reactivity}
+# diary sleep duration
 p_diary_tst1 <- ggplot(df.er_psg_diary, 
        aes(diary_tst_mean, watch_val_rating, color = as.factor(intensity_num))) +
   geom_point(alpha = .3)+
@@ -1188,7 +1189,50 @@ p_diary_tst2 <- ggplot(df.er_psg_diary,
 
 plot_grid(p_diary_tst1, p_diary_tst2, ncol = 1)
 ggsave("plots/diary_tst_reactivity.png", width = 9, height = 6)
+
+# PSQI sleep duration
+p_psqi_tst1 <- ggplot(df.er_psg_diary, 
+       aes(psqi_sleep_hours, watch_val_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "PSQI sleep and valence-reactivity",
+       x = "PSQI sleep duration")+
+  theme(legend.position = "none")
+
+p_psqi_tst2 <- ggplot(df.er_psg_diary, 
+       aes(psqi_sleep_hours, watch_arou_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "PSQI sleep and valence-reactivity",
+       x = "PSQI sleep duration")+
+  theme(legend.position = "none")
+
+plot_grid(p_psqi_tst1, p_psqi_tst2, ncol = 1)
+ggsave("plots/psqi_tst_reactivity.png", width = 9, height = 6)
 ```
+
+```{r model: habitual sleep and reactivity}
+# diary sleep
+lmerTest::lmer(scale(watch_val_rating) ~ scale(diary_tst_mean)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_diary) %>% summary()
+
+lmerTest::lmer(scale(watch_arou_rating) ~ scale(diary_tst_mean)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_diary) %>% summary()
+
+# psqi sleep
+lmerTest::lmer(scale(watch_val_rating) ~ scale(psqi_sleep_hours)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_diary) %>% summary()
+
+lmerTest::lmer(scale(watch_arou_rating) ~ scale(psqi_sleep_hours)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_diary) %>% summary()
+```
+
 
 
 ```{r analysis: REM vs. SWS}
