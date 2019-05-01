@@ -382,10 +382,6 @@ mod_sleep1_brm_new = brm(scale(watch_val_rating)~scale(psg_n1)+scale(psg_n2)+
                          iter = 2000, warmup = 500, chains = 4, cores = 2)
 
 # plot(mod_sleep1_brm, N = 8)
-# # print the table
-# tidy(mod_sleep1_brm) %>% 
-#   filter(grepl("b_", term)) %>% 
-#   kable(digits = 3)
 # posterior_summary(mod_sleep1_brm_new)[1:7,] %>% round(digits =  4)
 
 # build mod_sleep2 using brms
@@ -409,13 +405,10 @@ mod_sleep2_brm_new = brm(scale(watch_arou_rating)~scale(psg_n1)+scale(psg_n2)+
                          iter = 2000, warmup = 500, chains = 4, cores = 2)
 
 # plot(mod_sleep2_brm_new, N = 8)
-# # print the table
-# tidy(mod_sleep2_brm_new) %>%
-#   filter(grepl("b_", term)) %>%
-#   kable(digits = 3)
+# print(mod_sleep2_brm_new)
 # posterior_summary(mod_sleep2_brm_new)[1:7,] %>% round(digits =  4)
 
-hypothesis(mod_sleep2_brm_new, hypothesis = "scaleintensity_num:scalepsg_tst > 0")
+hypothesis(mod_sleep2_brm_new, hypothesis = "scalepsg_rem > 0")
 ```
 
 The posterior distributions of the effects of each sleep stage on valence and arousal are presented in the figure below. Consistent with the results of the non-Bayesian models, Stage 2 sleep seemed to have the largest effect on emotional ractivity among all sleep stages.
