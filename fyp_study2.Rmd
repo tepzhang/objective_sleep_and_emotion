@@ -748,7 +748,14 @@ p_sws4 <- ggplot(df.er_psg,
 
 plot_grid(p_sws1, p_sws3, p_sws2, p_sws4)
 ggsave("plots/sws-reactivity correlation.png", width = 12, height = 9)
+
+
+# grid plot rem and sws
+plot_grid(p_rem1, p_rem5, p_sws1, p_sws3)
+ggsave("plots/rem_sws_reactivity.png", width = 10, height = 7.5)
+
 ```
+
 ```{r visualization 5 SWS and regulation}
 #### SWS and valence-regulation ####
 p_sws5 <- ggplot(df.er_psg,
@@ -1217,7 +1224,7 @@ p_psqi_tst2 <- ggplot(df.er_psg_diary,
   geom_point(alpha = .3)+
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
-  labs(title = "PSQI sleep and valence-reactivity",
+  labs(title = "PSQI sleep and arousal-reactivity",
        x = "PSQI sleep duration")+
   theme(legend.position = "none")
 

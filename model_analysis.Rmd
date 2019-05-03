@@ -5,55 +5,66 @@ date: "April 30, 2019"
 output: html_document
 ---
 
-
-```{r load library}
+## load the package and data
+```{r load library, warning=F, message=F}
 # library("knitr")
 # library("kableExtra") # for making nice tables
-library("GGally")
+# library("GGally")
 library("lme4")
 library("janitor")    # for cleaning column names
 library("broom")      # for tidying up linear models
 library("tidyverse")
 library("cowplot")
-library("lubridate") # load lubridate for time data
+# library("lubridate") # load lubridate for time data
 library("brms")
-library(MuMIn)
+library(MuMIn) # calculate R-squared for glm
 
 load("data/workspace_fyp_study2.Rdata")
+
+# load("df.er_psg.Rdata")
 ```
 
 ## Frequentist linear mixed effects models
 
+### The model resutls
 ```{r TST and ER-task linear models}
 ## interaction
 mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num +
-                   (1+intensity_num|participant), 
+                   (1+intensity_num|participant),
                data = df.er_psg)
-r.squaredGLMM(mod_tst4)
-# To get the standardized coefficients
-# lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
-#                    (1+scale(intensity_num)|participant), 
-#                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
+# r.squaredGLMM(mod_tst4)
 
-mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num +
-                    (1+intensity_num|participant), 
-               data = df.er_psg)
-anova(mod_tst4c, mod_tst4)
+# mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num +
+#                     (1+intensity_num|participant), 
+#                data = df.er_psg)
+# anova(mod_tst4c, mod_tst4)
+
+# To get the standardized coefficients
+lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant),
+               data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
+
+
 
 
 mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num +
-                   (1+intensity_num|participant), 
-               data = df.er_psg) 
-r.squaredGLMM(mod_tst4)
-# To get the standardized coefficients
-# lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
-#                    (1+scale(intensity_num)|participant),
-#                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
-mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num +
-                    (1+intensity_num|participant), 
+                   (1+intensity_num|participant),
                data = df.er_psg)
-anova(mod_tst3c, mod_tst3)
+# r.squaredGLMM(mod_tst3)
 
+# mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num +
+#                     (1+intensity_num|participant), 
+#                data = df.er_psg)
+# anova(mod_tst3c, mod_tst3)
+
+# To get the standardized coefficients
+lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant),
+               data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
+
+```
+### Plot the models
+```{r plot the models}
 # plot the model prediction
 p_tst_mod1 <- mod_tst4 %>% 
   augment()  %>% 
@@ -90,8 +101,10 @@ p_tst_mod2 <- mod_tst3 %>%
   theme(legend.position = "none")
 
 plot_grid(p_tst_mod1, p_tst_mod2, ncol = 1)
-ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
+# ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
 ```
+
+### add REM to the model
 ```{r REM and reactivity beyond TST}
 # valence rating
 lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
@@ -105,7 +118,7 @@ lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
                  (1+scale(intensity_num)|participant),
                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
 ```
-
+### add SWS to the model
 ```{r SWS and reactivity beyond TST}
 # valence rating
 lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
@@ -121,10 +134,11 @@ lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
 ```
 
 
-
 ## Bayesian models
 
 We also built the same models using Bayesian package `brms` and compute the Bayes Factor for the effect of REM and SWS. First, we built the bayesian models with TST x intensity for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective.
+
+### TST models (default priors)
 ```{r TST model using Bayesian brms}
 # build mod_tst1 using brms (weakly-informative prior)
 mod_tst1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
@@ -136,7 +150,11 @@ mod_tst1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 #mod_tst1_brm %>% plot(N = 6)
 # posterior_summary(mod_tst1_brm)[1:8,] %>% round(digits =  4)
-bayes_R2(mod_tst1_brm)
+print(mod_tst1_brm)
+# bayes_R2(mod_tst1_brm)
+
+# check the default prior
+prior_summary(mod_tst1_brm)
 
 
 # build mod_tst2 using brms (weakly-informative prior)
@@ -149,11 +167,64 @@ mod_tst2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_nu
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 #mod_tst2_brm %>% plot(N = 6)
 # posterior_summary(mod_tst2_brm)[1:8,] %>% round(digits =  4)
-bayes_R2(mod_tst2_brm)
+print(mod_tst2_brm)
+# bayes_R2(mod_tst2_brm)
+```
+### add some priors
+```{r add our own priors}
+# get_prior(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+#                       (1+scale(intensity_num)|participant),
+#           data = df.er_psg %>% filter(!is.na(psg_tst)))
 
-prior_summary(mod_tst1_brm)
+mod_tst1_brm_prior <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+                      data = df.er_psg %>% filter(!is.na(psg_tst)),
+                      prior = c(
+                        prior(normal(0, 1), class = "b", coef = "scalepsg_tst"),
+                        prior(normal(0, 1), class = "b", coef = "scaleintensity_num"),
+                        prior(normal(0, 1), class = "b", coef = "scalepsg_tst:scaleintensity_num"),
+                        # prior(lkj(1), class = "cor"),
+                        prior(normal(0, 1), class = "Intercept"),
+                        prior(cauchy(0, 1), class = "sd")
+                      ),
+                      family = gaussian,
+               save_all_pars = T,
+               file = "tst1_brm_prior",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+#mod_tst1_brm_prior %>% plot(N = 6)
+# posterior_summary(mod_tst1_brm_prior)[1:8,] %>% round(digits =  4)
+print(mod_tst1_brm_prior)
+
+# check the default prior
+prior_summary(mod_tst1_brm_prior)
+
+
+
+
+mod_tst2_brm_prior <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+                      data = df.er_psg %>% filter(!is.na(psg_tst)),
+                      prior = c(
+                        prior(normal(0, 1), class = "b", coef = "scalepsg_tst"),
+                        prior(normal(0, 1), class = "b", coef = "scaleintensity_num"),
+                        prior(normal(0, 1), class = "b", coef = "scalepsg_tst:scaleintensity_num"),
+                        # prior(lkj(1), class = "cor"),
+                        prior(normal(0, 1), class = "Intercept"),
+                        prior(cauchy(0, 1), class = "sd")
+                      ),
+                      family = gaussian,
+               save_all_pars = T,
+               file = "tst2_brm_prior",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+#mod_tst1_brm_prior %>% plot(N = 6)
+# posterior_summary(mod_tst2_brm_prior)[1:8,] %>% round(digits =  4)
+print(mod_tst2_brm_prior)
+
+# check the default prior
+prior_summary(mod_tst2_brm_prior)
 ```
 
+### plot the models
 ```{r plot brm model predictions}
 # calculate the mean and Sd for DVs
 mean_watch_val = mean((df.er_psg %>% filter(!is.na(psg_tst)))$watch_val_rating)
@@ -194,11 +265,13 @@ p_tst2_brm <- mod_tst1_brm %>%
   theme(legend.position = "none")
 
 plot_grid(p_tst1_brm, p_tst2_brm, ncol = 1)
-ggsave("plots/brm_models_tst.png", width = 9, height = 6)
+# ggsave("plots/brm_models_tst.png", width = 9, height = 6)
 ```
 
 
 Second, we built the bayesian models with TST x intensity plus REM duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the REM effect.
+
+### add REM
 ```{r REM model using Bayesian brms}
 # build mod_rem1 using brms (weakly-informative prior)
 mod_rem1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) + 
@@ -210,7 +283,7 @@ mod_rem1_brm <- brm(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num
                file = "rem1_brm",
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 # print the model results
-# print(mod_rem1_brm)
+print(mod_rem1_brm)
 # the trace plots
 # plot(mod_rem1_brm, N = 7)
 # posterior_summary(mod_rem1_brm)[1:9,] %>% round(digits =  4)
@@ -226,7 +299,7 @@ mod_rem2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_nu
                file = "rem2_brm",
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 # print the model results
-# print(mod_rem2_brm)
+print(mod_rem2_brm)
 # the trace plot
 # plot(mod_rem2_brm, N = 7)
 # posterior_summary(mod_rem2_brm)[1:9,] %>% round(digits =  4)
@@ -284,6 +357,8 @@ hypothesis(mod_rem2_brm,
 For valence, the Bayes Factor of REM is `r BF_rem1[1] %>% as.numeric() %>% round(4)`. For arousal, the Bayes Factor of REM is `r BF_rem2[1] %>% as.numeric() %>% round(4)`. Both results provided evidence for a null effect of REM on emotional reactivity.
 
 Third, we built the bayesian models with TST x intensity plus SWS duration for both valence and arousal. The trace plots showed that the Monte Carlo sampling was effective. Following that, we computed the Bayes Factor of the SWS effect.
+
+### SWS model
 ```{r SWS model using Bayesian brms}
 # build mod_sws1 using brms (weakly-informative prior)
 mod_sws1_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
@@ -295,7 +370,7 @@ mod_sws1_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_nu
                file = "sws1_brm",
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 # # show the posterior
-# print(mod_sws1_brm)
+print(mod_sws1_brm)
 # # the trace plots
 # plot(mod_sws1_brm, N = 7)
 # posterior_summary(mod_sws1_brm)[1:9,] %>% round(digits =  4)
@@ -310,7 +385,7 @@ mod_sws2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_nu
                file = "sws2_brm",
                iter = 2000, warmup = 500, chains = 4, cores = 2)
 # # print the model results
-# print(mod_sws2_brm)
+print(mod_sws2_brm)
 # # the trace plot
 # plot(mod_sws2_brm, N = 7)
 # posterior_summary(mod_sws2_brm)[1:9,] %>% round(digits =  4)
@@ -360,6 +435,8 @@ hypothesis(mod_sws2_brm,
 For arousal, the Bayes Factor of SWS is `r BF_sws1[1] %>% as.numeric() %>% round(4)`. For arousal, the Bayes Factor of SWS is `r BF_sws2[1] %>% as.numeric() %>% round(4)`. Both results provided evidence for a null effect of SWS on emotional reactivity.
 
 Finally, we built the bayesian models for understanding the effects of all sleep stages at the same time. All variables are standardized before fitting the model so that the parameter posteriors are in the same scale. The trace plots showed that the Monte Carlo sampling was effective. The model results are presented in the following tables.
+
+### model with all 4 stages
 ```{r sleep stages model using Bayesian brms, warning=F}
 # build mod_sleep1 using brms
 mod_sleep1_brm = brm(scale(watch_val_rating)~scale(psg_n1)+scale(psg_n2)+
@@ -440,13 +517,26 @@ plot_grid(p_sleep1_brm, p_sleep2_brm, ncol = 1)
 # ggsave("../../figures/sleep_stages_posterior.png", width = 8, height = 10)
 ```
 
+## Trait-level information (individual difference questionnaires)
+```{r pers and psqi}
+ggplot(df.ind_diff, aes(psqislpqual, pers_gnr))+
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")
+
+cor.test(df.ind_diff$pers_gnr, df.ind_diff$psqi_total)
+```
+```{r pers and ER reactivity}
+
+```
+
+
+
 ## Session information
 ```{r session_info}
 sessionInfo()
 ```
 
-
 ## Save the workspace
-```{r save workspace}
+```{r save workspace, eval=F}
 save.image('data/workspace_fyp_study2.Rdata')
 ```
