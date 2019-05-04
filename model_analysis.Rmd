@@ -522,30 +522,37 @@ plot_grid(p_sleep1_brm, p_sleep2_brm, ncol = 1)
 ## add psqi and pers to the data
 df.er_psg <- df.er_psg %>% 
   left_join(df.ind_diff %>% 
-              select(partID, starts_with("psqi"), starts_with("pers")),
+              select(partID, starts_with("psqi_"), starts_with("pers_")),
             by = c("participant" = "partID"))
 
 # fyp final sample
-# psych::corr.test(df.er_psg %>% 
-#                    filter(intensity == "high") %>%
-#                    select(psqi_sleep_hours, pers_gnr))
-cor.test(df.er_psg$pers_gnr[df.er_psg$intensity=="high" & !is.na(df.er_psg$psg_tst)],
-         df.er_psg$psqi_sleep_hours[df.er_psg$intensity=="high" & !is.na(df.er_psg$psg_tst)])
+psych::corr.test(df.er_psg %>%
+                   filter(intensity == "high", 
+                          # psqi_sd > 4,
+                          !is.na(df.er_psg$psg_tst)) %>%
+                   select(pers_anr, psqi_sd, psqi_c1, psqi_se,psqi_lat))
+# cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" & 
+#                               !is.na(df.er_psg$psg_tst)],
+#          df.er_psg$psqi_sd[df.er_psg$intensity=="high" &
+#                                       !is.na(df.er_psg$psg_tst)])
 
 
 # R56 final sample
-cor.test(df.ind_diff$pers_gnr, df.ind_diff$hourssleep_Hours)
+cor.test(df.ind_diff$pers_anr, df.ind_diff$psqi_sd)
+psych::corr.test(df.ind_diff %>%
+                   select(pers_anr, psqi_sd, psqi_c1, psqi_se, psqi_c4, psqi_lat, psqi_c2))
+
 
 # scatter plots
 p_psqi_pers1 <- ggplot(df.er_psg %>% filter(intensity == "high", !is.na(psg_tst)),
-       aes(psqi_sleep_hours, pers_gnr))+
-  geom_point(alpha = .5)+
+       aes(psqi_sd, pers_anr))+
+  geom_point(alpha = .5, position = position_jitter(width = .2))+
   geom_smooth(method = "lm")+
   labs(title = "Study2 sample (n = 62), r = -.13")
 
 p_psqi_pers2 <-ggplot(df.ind_diff,
-       aes(hourssleep_Hours, pers_gnr))+
-  geom_point(alpha = .5)+
+       aes(psqi_sd, pers_anr))+
+  geom_point(alpha = .5, position = position_jitter(width = .2))+
   geom_smooth(method = "lm")+
   labs(title = "R56 whole sample (n = 104), r = -.18")
 
@@ -557,14 +564,14 @@ ggsave("plots/psqi_pers.png", width = 8, height = 4)
 df.er_psg$intensity = factor(df.er_psg$intensity, levels = c("ntr", "low", "mid", "high"))
 
 p_pers1 <- ggplot(df.er_psg,
-       aes(pers_gnr, watch_val_rating, color = intensity))+
+       aes(pers_anr, watch_val_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
   labs(title = "PERS negative reactivity and valence-reactivity")
 
 p_pers2 <- ggplot(df.er_psg,
-       aes(pers_gnr, watch_arou_rating, color = intensity))+
+       aes(pers_anr, watch_arou_rating, color = intensity))+
   geom_point(alpha = .8)+
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
@@ -574,10 +581,10 @@ plot_grid(p_pers1, p_pers2, ncol = 1)
 ggsave("plots/pers_task_reactivity.png", width = 9, height = 6)
 
 # correlation between pers and valence rating (neg pictures)
-cor.test(df.er_psg$pers_gnr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
+cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
          df.er_psg$watch_val_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
 # correlation between pers and arousal rating (neg pictures)
-cor.test(df.er_psg$pers_gnr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
+cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
          df.er_psg$watch_arou_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
 ```
 

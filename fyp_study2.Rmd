@@ -536,6 +536,53 @@ df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary,
 df.ind_diff <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/", 
                         "processed/FinalDATA104.csv", sep = ""))
 
+# score pers and psqi
+df.ind_diff <- df.ind_diff %>% 
+  mutate(pers_apr = pers_gpr/15, pers_anr = pers_gnr/15)%>% 
+  mutate(psqi_c1 = psqi9,
+         # c1: subjective sleep quality
+         psqi_lat = ifelse(minutestosleep_Minute <= 15, 0, 
+                          ifelse(minutestosleep_Minute >= 16 & 
+                                   minutestosleep_Minute <= 30, 1,
+                                 ifelse(minutestosleep_Minute <= 60 &
+                                          minutestosleep_Minute >= 31, 2,
+                                        ifelse(minutestosleep_Minute > 60, 3, 999)))),
+         psqi_c2 = (psqi_lat + psqi5a + 1) %/% 2,
+         # c2: sleep latency
+         psqi_sd = hourssleep_Hours,
+         psqi_c3 = ifelse(psqi_sd > 7, 0,
+                          ifelse(psqi_sd %in% c(6,7), 1,
+                                 ifelse(psqi_sd %in% c(5,6), 2,
+                                        ifelse(psqi_sd < 5, 3, 999)))),
+         # c3: sleep duration
+         psqi_tib = (timeoutbed_Hour - timetobed_Hour) +
+           (timeoutbed_Minute - timetobed_Minute)/60,
+         psqi_tib = ifelse(psqi_tib < 0, psqi_tib + 12, psqi_tib),
+         psqi_se = psqi_sd/psqi_tib,
+         psqi_c4 = ifelse(psqi_se >= .85, 0,
+                          ifelse(psqi_se >= .75 & psqi_se < .85, 1, 
+                          ifelse(psqi_se >= .65 & psqi_se < .75, 2,
+                                 ifelse(psqi_se < .65, 3, 999)))),
+         # c4: sleep efficiency
+         psqi_slp_distb = psqi5a +  psqi5b +  as.numeric(psqi5c) +  psqi5d +  psqi5e + 
+            psqi5f +  psqi5g +  psqi5h +  psqi5i +  
+           ifelse(psqi5j == "#NULL!", 0, as.numeric(psqi5j)),
+         psqi_c5 = ifelse(psqi_slp_distb == 0, 0,
+                          ifelse(psqi_slp_distb <= 9 & psqi_slp_distb >= 1, 1,
+                                 ifelse(psqi_slp_distb <= 18 & psqi_slp_distb >= 10, 2,
+                                        ifelse(psqi_slp_distb <= 27 & 
+                                                 psqi_slp_distb >= 19, 3, 999)))),
+         # c5: sleep disturbance
+         psqi_c6 = psqi6,
+         # c6; use of sleep medication
+         psqi_c7 = (psqi7 + psqi8 + 1) %/% 2,
+         # c7: daytime dysfunction
+         psqi_global = psqi_c1 + psqi_c2 + psqi_c3 + psqi_c4 + 
+           psqi_c5 +psqi_c6 + psqi_c7,
+         # global: sum of 7 components - the global score
+         psqi_score_diff = psqi_total - psqi_global
+         ) 
+
 # add gender and age
 df.er_psg <- df.er_psg %>% 
   left_join(df.ind_diff %>% 
