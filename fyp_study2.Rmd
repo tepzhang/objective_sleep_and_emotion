@@ -559,6 +559,7 @@ df.ind_diff <- df.ind_diff %>%
            (timeoutbed_Minute - timetobed_Minute)/60,
          psqi_tib = ifelse(psqi_tib < 0, psqi_tib + 12, psqi_tib),
          psqi_se = psqi_sd/psqi_tib,
+         psqi_se = ifelse(psqi_se > 1, 1, psqi_se),
          psqi_c4 = ifelse(psqi_se >= .85, 0,
                           ifelse(psqi_se >= .75 & psqi_se < .85, 1, 
                           ifelse(psqi_se >= .65 & psqi_se < .75, 2,
@@ -1263,7 +1264,8 @@ p_psqi_tst1 <- ggplot(df.er_psg_diary,
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
   labs(title = "PSQI sleep and valence-reactivity",
-       x = "PSQI sleep duration")+
+       x = "PSQI sleep duration",
+       y = "arousal rating")+
   theme(legend.position = "none")
 
 p_psqi_tst2 <- ggplot(df.er_psg_diary, 
@@ -1272,10 +1274,11 @@ p_psqi_tst2 <- ggplot(df.er_psg_diary,
   geom_smooth(method = "lm")+
   facet_wrap(.~intensity, nrow = 1)+
   labs(title = "PSQI sleep and arousal-reactivity",
-       x = "PSQI sleep duration")+
+       x = "PSQI sleep duration",
+       y = "arousal rating")+
   theme(legend.position = "none")
 
-plot_grid(p_psqi_tst1, p_psqi_tst2, ncol = 1)
+plot_grid(p_psqi_tst1, p_psqi_tst2, ncol = 1, labels = c("a", "b"))
 ggsave("plots/psqi_tst_reactivity.png", width = 9, height = 6)
 ```
 
