@@ -31,12 +31,12 @@ load("data/workspace_fyp_study2.Rdata")
 ## interaction
 mod_tst4 <- lmer(watch_val_rating ~ psg_tst*intensity_num +
                    (1+intensity_num|participant),
-               data = df.er_psg)
+               data = df.er_psg %>% filter(!is.na(psg_tst)))
 # r.squaredGLMM(mod_tst4)
 
 # mod_tst4c <- lmer(watch_val_rating ~ psg_tst + intensity_num +
-#                     (1+intensity_num|participant), 
-#                data = df.er_psg)
+#                     (1+intensity_num|participant),
+#                data = df.er_psg %>% filter(!is.na(psg_tst)))
 # anova(mod_tst4c, mod_tst4)
 
 # To get the standardized coefficients
@@ -49,19 +49,32 @@ lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
 
 mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num +
                    (1+intensity_num|participant),
-               data = df.er_psg)
+               data = df.er_psg %>% filter(!is.na(psg_tst)))
+
+
 # r.squaredGLMM(mod_tst3)
 
 # mod_tst3c <- lmer(watch_arou_rating ~ psg_tst + intensity_num +
-#                     (1+intensity_num|participant), 
-#                data = df.er_psg)
+#                     (1+intensity_num|participant),
+#                data = df.er_psg %>% filter(!is.na(psg_tst)))
 # anova(mod_tst3c, mod_tst3)
 
 # To get the standardized coefficients
-lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
+sd_intensity = (df.er_psg %>% filter(!is.na(psg_tst)))$intensity_num %>% sd()
+mean_intensity = (df.er_psg %>% filter(!is.na(psg_tst)))$intensity_num %>% mean()
+sd_psg_tst = (df.er_psg %>% filter(!is.na(psg_tst)))$psg_tst %>% sd()
+mean_psg_tst = (df.er_psg %>% filter(!is.na(psg_tst)))$psg_tst %>% mean()
+
+lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*(scale(intensity_num)) +
                    (1+scale(intensity_num)|participant),
                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
 
+# calculate the simple slope betas
+# betas for psg_tst
+1.520e-01 + 7.565e-02*(c(0,1,2,3) - mean_intensity)/sd_intensity
+# betas for intensity
+6.421e-01 + 7.565e-02*c(-1, 0, 1)
+(mean_psg_tst + c(-1, 0, 1)*sd_psg_tst)/60
 ```
 ### Plot the models
 ```{r plot the models}
@@ -79,8 +92,9 @@ p_tst_mod1 <- mod_tst4 %>%
   geom_point(aes(y = fitted), alpha = .5)+
   geom_smooth(aes(y = fitted), method = "lm", se = F)+
   facet_wrap(.~intensity, nrow = 1)+
-  labs(title = "model prediction: TST and valence-reactivity",
-       x = "total sleep time")+
+  labs(title = "a. PSG sleep duration and valence-reactivity",
+       x = "total sleep time",
+       y = "valence rating")+
   theme(legend.position = "none")
 
 p_tst_mod2 <- mod_tst3 %>% 
@@ -96,12 +110,22 @@ p_tst_mod2 <- mod_tst3 %>%
   geom_point(aes(y = fitted), alpha = .5)+
   geom_smooth(aes(y = fitted), method = "lm", se = F)+
   facet_wrap(.~intensity, nrow = 1)+
-  labs(title = "model prediction: TST and arousal-reactivity",
-       x = "total sleep time")+
+  labs(title = "b. PSG sleep duration and arousal-reactivity",
+       x = "total sleep time",
+       y = "arousal rating")+
   theme(legend.position = "none")
 
 plot_grid(p_tst_mod1, p_tst_mod2, ncol = 1)
-# ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
+ggsave("plots/tst-reactivity models_random_slope.png", width = 9, height = 6)
+
+ggplot(data = df.er_psg %>% filter(!is.na(psg_tst)),
+       aes(intensity, watch_arou_rating, color = psg_tst)) +
+  geom_point(alpha = .5, 
+             position = position_jitter(width = .2))+
+  scale_color_gradient2(midpoint= mean((df.er_psg %>% filter(!is.na(psg_tst)))$psg_tst), 
+                       low="blue", mid="white",high="red", 
+                       space ="Lab",
+                       name = "sleep duration")
 ```
 
 ### add REM to the model
@@ -111,6 +135,7 @@ lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
                  scale(psg_rem)+
                  (1+scale(intensity_num)|participant),
                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
+
 
 # arousal rating
 lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_num) +
@@ -169,6 +194,17 @@ mod_tst2_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)*scale(intensity_nu
 # posterior_summary(mod_tst2_brm)[1:8,] %>% round(digits =  4)
 print(mod_tst2_brm)
 # bayes_R2(mod_tst2_brm)
+
+mod_tst2c_brm <- brm(scale(watch_arou_rating) ~ scale(psg_tst)+scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
+               family = gaussian,
+               save_all_pars = T,
+               file = "tst2c_brm",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+# compare with the model with only intensity
+bayes_factor(mod_tst2_brm, mod_tst2c_brm)
 ```
 ### add some priors
 ```{r add our own priors}
@@ -308,24 +344,40 @@ print(mod_rem2_brm)
 # plot the posterior distribution of rem coefficient
 p_rem1_brm <- mod_rem1_brm %>%
   posterior_samples() %>%
-  select(starts_with("b_scalepsg_rem")) %>%
-  gather("variable", "value") %>%
-  ggplot(aes(y = variable, x = value))+
+  select(starts_with("b_"), -contains("intercept")) %>%
+  gather("predictor", "beta") %>%
+  mutate(predictor = factor(predictor, 
+                            levels = c("b_scalepsg_rem", 
+                                       "b_scalepsg_tst:scaleintensity_num",
+                                       "b_scalepsg_tst",
+                                       "b_scaleintensity_num"),
+                            labels = c("rem", "tst x intensity", 
+                                       "tst", "intensity"))) %>% 
+  ggplot(aes(y = predictor, x = beta))+
   tidybayes::geom_halfeyeh()+
   geom_vline(xintercept = 0, linetype = 2)+
-  labs(title = "Model on valence")
-#ggsave("../../figures/rem_valence_posterior.png", width = 4, height = 3)
+  xlim(-.3, .8)+
+  labs(title = "a. Valence: posterior distribution of betas")
 
 p_rem2_brm <- mod_rem2_brm %>%
   posterior_samples() %>%
-  select(starts_with("b_scalepsg_rem")) %>%
-  gather("variable", "value") %>%
-  ggplot(aes(y = variable, x = value))+
+  select(starts_with("b_"), -contains("intercept")) %>%
+  gather("predictor", "beta") %>%
+  mutate(predictor = factor(predictor, 
+                            levels = c("b_scalepsg_rem", 
+                                       "b_scalepsg_tst:scaleintensity_num",
+                                       "b_scalepsg_tst",
+                                       "b_scaleintensity_num"),
+                            labels = c("rem", "tst x intensity", 
+                                       "tst", "intensity"))) %>% 
+  ggplot(aes(y = predictor, x = beta))+
   tidybayes::geom_halfeyeh()+
   geom_vline(xintercept = 0, linetype = 2)+
-  labs(title = "Model on arousal")
+  xlim(-.3, .8)+
+  labs(title = "b. Arousal: posterior distribution of betas")
 
 plot_grid(p_rem1_brm, p_rem2_brm, ncol = 1)
+ggsave("plots/rem_posterior.png", width = 8, height = 6)
 ```
 
 ```{r Bayes factor: REM, message=F, results='hide'}
@@ -393,24 +445,44 @@ print(mod_sws2_brm)
 # plot the posterior distribution of rem coefficient
 p_sws1_brm <- mod_sws1_brm %>%
   posterior_samples() %>%
-  select(starts_with("b_scalepsg_sws")) %>%
-  gather("variable", "value") %>%
-  ggplot(aes(y = variable, x = value))+
+  select(starts_with("b_"), -contains("intercept")) %>%
+  gather("predictor", "beta") %>%
+  mutate(predictor = factor(predictor, 
+                            levels = c("b_scalepsg_sws", 
+                                       "b_scalepsg_tst:scaleintensity_num",
+                                       "b_scalepsg_tst",
+                                       "b_scaleintensity_num"),
+                            labels = c("sws", "tst x intensity", 
+                                       "tst", "intensity"))) %>% 
+  ggplot(aes(y = predictor, x = beta))+
   tidybayes::geom_halfeyeh()+
   geom_vline(xintercept = 0, linetype = 2)+
-  labs(title = "Model on valence")
-#ggsave("../../figures/rem_valence_posterior.png", width = 4, height = 3)
+  xlim(-.3, .8)+
+  labs(title = "c. Valence: posterior distribution of betas")
 
 p_sws2_brm <- mod_sws2_brm %>%
   posterior_samples() %>%
-  select(starts_with("b_scalepsg_sws")) %>%
-  gather("variable", "value") %>%
-  ggplot(aes(y = variable, x = value))+
+  select(starts_with("b_"), -contains("intercept")) %>%
+  gather("predictor", "beta") %>%
+  mutate(predictor = factor(predictor, 
+                            levels = c("b_scalepsg_sws", 
+                                       "b_scalepsg_tst:scaleintensity_num",
+                                       "b_scalepsg_tst",
+                                       "b_scaleintensity_num"),
+                            labels = c("sws", "tst x intensity", 
+                                       "tst", "intensity"))) %>% 
+  ggplot(aes(y = predictor, x = beta))+
   tidybayes::geom_halfeyeh()+
   geom_vline(xintercept = 0, linetype = 2)+
-  labs(title = "Model on arousal")
+  xlim(-.3, .8)+
+  labs(title = "d. Arousal: posterior distribution of betas")
 
 plot_grid(p_sws1_brm, p_sws2_brm, ncol = 1)
+ggsave("plots/sws_posterior.png", width = 8, height = 6)
+
+
+plot_grid(p_rem1_brm, p_rem2_brm, p_sws1_brm, p_sws2_brm, ncol = 1)
+ggsave("plots/rem_sws_posterior.png", width = 8, height = 10)
 ```
 
 ```{r Bayes factor: SWS, message=F, results='hide'}
@@ -530,7 +602,7 @@ psych::corr.test(df.er_psg %>%
                    filter(intensity == "high", 
                           # psqi_sd > 4,
                           !is.na(df.er_psg$psg_tst)) %>%
-                   select(pers_anr, psqi_sd, psqi_c1, psqi_se,psqi_lat))
+                   select(pers_anr, pers_apr, psqi_sd, psqi_c1, psqi_se,psqi_lat))
 # cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" & 
 #                               !is.na(df.er_psg$psg_tst)],
 #          df.er_psg$psqi_sd[df.er_psg$intensity=="high" &
@@ -538,9 +610,9 @@ psych::corr.test(df.er_psg %>%
 
 
 # R56 final sample
-cor.test(df.ind_diff$pers_anr, df.ind_diff$psqi_sd)
-psych::corr.test(df.ind_diff %>%
-                   select(pers_anr, psqi_sd, psqi_c1, psqi_se, psqi_c4, psqi_lat, psqi_c2))
+# cor.test(df.ind_diff$pers_anr, df.ind_diff$psqi_sd)
+# psych::corr.test(df.ind_diff %>%
+#                    select(pers_anr, psqi_sd, psqi_c1, psqi_se, psqi_c4, psqi_lat, psqi_c2))
 
 
 # scatter plots
@@ -548,18 +620,101 @@ p_psqi_pers1 <- ggplot(df.er_psg %>% filter(intensity == "high", !is.na(psg_tst)
        aes(psqi_sd, pers_anr))+
   geom_point(alpha = .5, position = position_jitter(width = .2))+
   geom_smooth(method = "lm")+
-  labs(title = "Study2 sample (n = 62), r = -.13")
+  labs(#title = "b",
+       x = "PSQI sleep duration",
+       y = "PERS negative reactivity")
 
-p_psqi_pers2 <-ggplot(df.ind_diff,
-       aes(psqi_sd, pers_anr))+
+p_psqi_pers2 <-ggplot(df.er_psg %>% filter(intensity == "high", !is.na(psg_tst)),
+       aes(psqi_sd, pers_apr))+
   geom_point(alpha = .5, position = position_jitter(width = .2))+
   geom_smooth(method = "lm")+
-  labs(title = "R56 whole sample (n = 104), r = -.18")
+  labs(# title = "a",
+       x = "PSQI sleep duration",
+       y = "PERS positive reactivity")
 
-plot_grid(p_psqi_pers1, p_psqi_pers2)
+plot_grid(p_psqi_pers2, p_psqi_pers1, labels = c("a", "b"))
 ggsave("plots/psqi_pers.png", width = 8, height = 4)
 
 ```
+```{r visualization: habitual sleep and reactivity}
+p_psqi_tst1 <- ggplot(df.er_psg_diary, 
+       aes(psqi_sleep_hours, watch_val_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "a. PSQI sleep and valence-reactivity",
+       x = "PSQI sleep duration",
+       y = "arousal rating")+
+  theme(legend.position = "none")
+
+p_psqi_tst2 <- ggplot(df.er_psg_diary, 
+       aes(psqi_sleep_hours, watch_arou_rating, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "b. PSQI sleep and arousal-reactivity",
+       x = "PSQI sleep duration",
+       y = "arousal rating")+
+  theme(legend.position = "none")
+
+plot_grid(p_psqi_tst1, p_psqi_tst2, ncol = 1)
+ggsave("plots/psqi_tst_reactivity.png", width = 9, height = 6)
+```
+
+
+```{r lmer: habitual sleep and reactivity}
+# psqi sleep
+lmerTest::lmer(scale(watch_val_rating) ~ scale(psqi_sd)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(df.er_psg$psg_tst))) %>% summary()
+
+
+lmerTest::lmer(scale(watch_arou_rating) ~ scale(psqi_sd)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(df.er_psg$psg_tst))) %>% summary()
+```
+
+```{r brm: habitual sleep and reactivity}
+# psqi sleep
+## valence
+mod_psqi1_brm <- brm(scale(watch_val_rating) ~ scale(psqi_sd)*scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
+               family = gaussian,
+               save_all_pars = T,
+               file = "psqi1_brm",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+mod_intensity1_brm <- brm(scale(watch_val_rating) ~ scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
+               family = gaussian,
+               save_all_pars = T,
+               file = "intensity1_brm",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+bayes_factor(mod_psqi1_brm, mod_intensity1_brm)
+
+## arousal
+mod_psqi2_brm <- brm(scale(watch_arou_rating) ~ scale(psqi_sd)*scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
+               family = gaussian,
+               save_all_pars = T,
+               file = "psqi2_brm",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+mod_intensity2_brm <- brm(scale(watch_arou_rating) ~ scale(intensity_num) + 
+                      (1+scale(intensity_num)|participant), 
+               data = df.er_psg %>% filter(!is.na(psg_tst)),
+               family = gaussian,
+               save_all_pars = T,
+               file = "intensity2_brm",
+               iter = 2000, warmup = 500, chains = 4, cores = 2)
+
+bayes_factor(mod_psqi2_brm, mod_intensity2_brm)
+```
+
 ```{r pers and ER reactivity}
 df.er_psg$intensity = factor(df.er_psg$intensity, levels = c("ntr", "low", "mid", "high"))
 
@@ -581,11 +736,21 @@ plot_grid(p_pers1, p_pers2, ncol = 1)
 ggsave("plots/pers_task_reactivity.png", width = 9, height = 6)
 
 # correlation between pers and valence rating (neg pictures)
-cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
-         df.er_psg$watch_val_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
-# correlation between pers and arousal rating (neg pictures)
-cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
-         df.er_psg$watch_arou_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
+# cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
+#          df.er_psg$watch_val_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
+# # correlation between pers and arousal rating (neg pictures)
+# cor.test(df.er_psg$pers_anr[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)],
+#          df.er_psg$watch_arou_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
+
+df.er_psg_neg <- df.er_psg %>% 
+  filter(intensity != "ntr", !is.na(df.er_psg$psg_tst)) %>% 
+  group_by(participant) %>% 
+  summarise(pers_anr = mean(pers_anr),
+            watch_val_rating = mean(watch_val_rating),
+            watch_arou_rating = mean(watch_arou_rating))
+
+cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_val_rating)
+cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_arou_rating)
 ```
 
 
