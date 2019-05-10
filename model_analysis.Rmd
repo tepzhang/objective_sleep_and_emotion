@@ -45,8 +45,6 @@ lmerTest::lmer(scale(watch_val_rating) ~ scale(psg_tst)*scale(intensity_num) +
                data = df.er_psg %>% filter(!is.na(psg_tst))) %>% summary()
 
 
-
-
 mod_tst3 <- lmer(watch_arou_rating ~ psg_tst*intensity_num +
                    (1+intensity_num|participant),
                data = df.er_psg %>% filter(!is.na(psg_tst)))
@@ -76,6 +74,30 @@ lmerTest::lmer(scale(watch_arou_rating) ~ scale(psg_tst)*(scale(intensity_num)) 
 6.421e-01 + 7.565e-02*c(-1, 0, 1)
 (mean_psg_tst + c(-1, 0, 1)*sd_psg_tst)/60
 ```
+```{r intensity as categorical predictors}
+
+fit.tst1 <- lmer(watch_arou_rating ~ psg_tst*intensity +
+                   (1|participant),
+               data = df.er_psg %>% filter(!is.na(psg_tst)))
+fit.tst1c <- lmer(watch_arou_rating ~ psg_tst+intensity +
+                   (1|participant),
+               data = df.er_psg %>% filter(!is.na(psg_tst)))
+anova(fit.tst1, fit.tst1c)
+
+fit.tst1 %>% 
+  augment() %>% 
+  clean_names() %>% 
+  ggplot(aes(psg_tst, fitted, color = intensity))+
+  geom_point(aes(y = watch_arou_rating),
+             color = "grey", alpha = .3)+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  facet_wrap(.~intensity, nrow = 1)
+
+fit.tst1 %>% r.squaredGLMM()
+```
+
+
 ### Plot the models
 ```{r plot the models}
 # plot the model prediction
@@ -751,6 +773,25 @@ df.er_psg_neg <- df.er_psg %>%
 
 cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_val_rating)
 cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_arou_rating)
+```
+
+```{r psg sleep and pers}
+# correlation
+ggplot(df.er_psg,
+       aes(pers_anr, psg_tst))+
+  geom_point(alpha = .8)+
+  geom_smooth(method = "lm")+
+  annotate("text", x = 1.2, y = 550, label = "r = -.03", 
+           color = "blue", size = 6)+
+  labs(title = "PERS negative reactivity and PSG TST")
+
+
+cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" &
+                              !is.na(df.er_psg$psg_tst)],
+         df.er_psg$psg_tst[df.er_psg$intensity=="high" &
+                                      !is.na(df.er_psg$psg_tst)])
+
+
 ```
 
 
