@@ -689,7 +689,7 @@ df.er_psg <- df.er_psg %>%
 # fyp final sample
 psych::corr.test(df.er_psg %>%
                    filter(intensity == "high", 
-                          # psqi_sd > 4,
+                          psqi_sd > 4,
                           !is.na(df.er_psg$psg_tst)) %>%
                    select(pers_anr, pers_apr, psqi_sd, psqi_c1, psqi_se,psqi_lat))
 cor.test(df.er_psg$pers_apr[df.er_psg$intensity=="high" &
@@ -871,7 +871,8 @@ df.er_psg_neg <- df.er_psg %>%
   summarise(pers_anr = mean(pers_anr),
             watch_val_rating = mean(watch_val_rating),
             watch_arou_rating = mean(watch_arou_rating),
-            psg_tst = mean(psg_tst))
+            psg_tst = mean(psg_tst),
+            psqi_sd = mean(psqi_sd))
 
 cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_val_rating)
 cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_arou_rating)
@@ -880,7 +881,7 @@ cor.test(df.er_psg_neg$pers_anr, df.er_psg_neg$watch_arou_rating)
 ```{r plot negative trials}
 ggplot(df.er_psg_neg,
        aes(psg_tst, watch_arou_rating))+
-  geom_point(alpha = .5, position = position_jitter(width = .2))+
+  geom_point(alpha = .5)+
   geom_smooth(method = "lm")+
   ylim(1, 5)+
   # annotate("text", x = 1.2, y = 550, label = "r = -.03", 
@@ -888,12 +889,38 @@ ggplot(df.er_psg_neg,
   labs(#title = "PERS negative reactivity and PSG TST",
        y = "Arousal rating",
        x = "PSG sleep duration")
-
 ggsave("plots/tst-reactivity_neg.png", width = 4, height = 3)
 
+ggplot(df.er_psg_neg,
+       aes(pers_anr, watch_arou_rating))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  ylim(1, 5)+
+  # annotate("text", x = 1.2, y = 550, label = "r = -.03", 
+  #          color = "blue", size = 6)+
+  labs(#title = "PERS negative reactivity and PSG TST",
+       y = "Arousal rating",
+       x = "PERS negative reactivity")
+ggsave("plots/pers-reactivity_neg.png", width = 4, height = 3)
 
-cor.test(df.er_psg_neg$psg_tst, df.er_psg_neg$watch_val_rating)
+
+ggplot(df.er_psg_neg,
+       aes(psqi_sd, watch_arou_rating))+
+  geom_point(alpha = .5, position = position_jitter(width = .2))+
+  geom_smooth(method = "lm")+
+  ylim(1, 5)+ xlim(5., 9)+
+  # annotate("text", x = 1.2, y = 550, label = "r = -.03", 
+  #          color = "blue", size = 6)+
+  labs(#title = "PERS negative reactivity and PSG TST",
+       y = "Arousal rating",
+       x = "PSQI sleep duration")
+ggsave("plots/psqi-reactivity_neg.png", width = 4, height = 3)
+
 cor.test(df.er_psg_neg$psg_tst, df.er_psg_neg$watch_arou_rating)
+cor.test(df.er_psg_neg$watch_val_rating, df.er_psg_neg$watch_arou_rating)
+cor.test(df.er_psg_neg$psqi_sd, df.er_psg_neg$watch_arou_rating)
+cor.test(df.er_psg_neg$psg_tst, df.er_psg_neg$pers_anr)
+cor.test(df.er_psg_neg$psqi_sd, df.er_psg_neg$pers_anr)
 ```
 
 
@@ -941,6 +968,27 @@ cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" &
 
 ```
 
+## generating (fake) hypothesis data
+```{r}
+sleep = rnorm(70, 7, 1)
+reactivity_neg = -.25*(sleep - 7) + rnorm(70, 3, .6)
+reactivity_pos = .25*(sleep - 7) + rnorm(70, 3, .6)
+reactivity_nul = 0*(sleep - 7) + rnorm(70, 3, .6)
+
+df.fake_neg <- data.frame(sleep, reactivity_neg)
+df.fake_pos <- data.frame(sleep, reactivity_pos)
+df.fake_nul <- data.frame(sleep, reactivity_nul)
+
+ggplot(df.fake_pos, aes(sleep, reactivity_pos))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  xlim(5, 9) + ylim(1, 5)+
+  labs(title = "", x = "sleep", y = "reactivity")+
+  theme_classic()+
+  theme(text = element_text(size = 14))
+
+ggsave("plots/fake_pos.png", width = 4, height = 3)
+```
 
 
 ## Session information
