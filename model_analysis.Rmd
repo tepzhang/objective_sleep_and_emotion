@@ -92,12 +92,12 @@ p_psg_tst1 <- ggplot(df.er_psg %>%
        aes(psg_tst, watch_val_rating, 
            color = factor(intensity_num))) +
   geom_point(alpha = .3)+
-  geom_smooth(method = "lm", se = F)+
-  # facet_wrap(.~factor(intensity_num,
-  #                     labels = c("neutral", "low-negative",
-  #                                "mid-negative", "high-negative")), nrow = 1)+
-  labs(#title = "a. PSQI sleep and valence-reactivity",
-    x = "PSG sleep duration (min)",
+  geom_smooth(method = "lm", se = T)+
+  facet_wrap(.~factor(intensity_num,
+                      labels = c("neutral", "low-negative",
+                                 "mid-negative", "high-negative")), nrow = 1)+
+  labs(title = "a. PSG sleep duration and valence-reactivity",
+    x = "PSG sleep duration",
     y = "valence rating",
     color = "Intensity")+
   theme(legend.position = "none")
@@ -109,12 +109,12 @@ p_psg_tst2 <- ggplot(df.er_psg %>%
        aes(psg_tst, watch_arou_rating, 
            color = factor(intensity_num))) +
   geom_point(alpha = .3)+
-  geom_smooth(method = "lm", se = F)+
-  # facet_wrap(.~factor(intensity_num,
-  #                     labels = c("neutral", "low-negative",
-  #                                "mid-negative", "high-negative")), nrow = 1)+
-  labs(#title = "b. PSQI sleep and arousal-reactivity",
-       x = "PSG sleep duration (min)",
+  geom_smooth(method = "lm", se = T)+
+  facet_wrap(.~factor(intensity_num,
+                      labels = c("neutral", "low-negative",
+                                 "mid-negative", "high-negative")), nrow = 1)+
+  labs(title = "a. PSG sleep duration arousal-reactivity",
+       x = "PSG sleep duration",
        y = "arousal rating",
     color = "Intensity")+
   theme(legend.position = "none")
@@ -125,6 +125,11 @@ ggsave("plots/tst-reactivity_facet.png", width = 9, height = 6)
 
 
 # correlations
+cor.test(df.er_psg$watch_arou_rating[df.er_psg$intensity=="high" &
+                              !is.na(df.er_psg$psg_tst)],
+         df.er_psg$psg_tst[df.er_psg$intensity=="high" &
+                                      !is.na(df.er_psg$psg_tst)])
+
 df.er_psg %>% 
   filter(!is.na(df.er_psg$psg_tst)) %>% 
   select(participant, intensity, psg_tst, watch_val_rating, watch_arou_rating) %>% 
@@ -735,26 +740,25 @@ df.er_psg_diary$intensity_num <- factor(df.er_psg_diary$intensity_num,
                                         labels = c("neutral", "low-negative",
                                                    "mid-negative", "high-negative"))
 
-p_psqi_tst1 <- ggplot(df.er_psg_diary %>% filter(psqi_sleep_hours>4, !is.na(psg_tst)), 
+p_psqi_tst1 <- ggplot(df.er_psg_diary %>% filter(!is.na(psg_tst)), 
        aes(psqi_sleep_hours, watch_val_rating, 
            color = intensity_num)) +
   geom_point(alpha = .3, position = position_jitter(width = .2))+
-  geom_smooth(method = "lm", se = F)+
-  # facet_wrap(.~intensity_num, nrow = 1)+
-  labs(#title = "a. PSQI sleep and valence-reactivity",
+  geom_smooth(method = "lm", se = T)+
+  facet_wrap(.~intensity_num, nrow = 1)+
+  labs(title = "a. PSQI sleep and valence-reactivity",
     x = "PSQI sleep duration",
     y = "valence rating",
     color = "Intensity")+
   theme(legend.position = "none")
 
-p_psqi_tst2 <- ggplot(df.er_psg_diary %>% filter(psqi_sleep_hours>4, 
-                                                 !is.na(psg_tst)), 
+p_psqi_tst2 <- ggplot(df.er_psg_diary %>% filter(!is.na(psg_tst)), 
        aes(psqi_sleep_hours, watch_arou_rating, 
            color = intensity_num)) +
   geom_point(alpha = .3, position = position_jitter(width = .2))+
-  geom_smooth(method = "lm", se = F)+
-  # facet_wrap(.~intensity_num, nrow = 1)+
-  labs(#title = "b. PSQI sleep and arousal-reactivity",
+  geom_smooth(method = "lm", se = T)+
+  facet_wrap(.~intensity_num, nrow = 1)+
+  labs(title = "b. PSQI sleep and arousal-reactivity",
        x = "PSQI sleep duration",
        y = "arousal rating",
     color = "Intensity")+
@@ -866,7 +870,9 @@ ggsave("plots/pers_task_reactivity.png", width = 5.5, height = 6)
 #          df.er_psg$watch_arou_rating[df.er_psg$intensity!="ntr" & !is.na(df.er_psg$psg_tst)])
 
 df.er_psg_neg <- df.er_psg %>% 
-  filter(intensity != "ntr", !is.na(df.er_psg$psg_tst)) %>% 
+  filter(intensity != "ntr", 
+         #intensity %in% c("high", "mid"),
+         !is.na(df.er_psg$psg_tst)) %>% 
   group_by(participant) %>% 
   summarise(pers_anr = mean(pers_anr),
             watch_val_rating = mean(watch_val_rating),
