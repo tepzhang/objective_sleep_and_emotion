@@ -1979,6 +1979,7 @@ ggsave("plots/emg_time_change.png", width = 8, height = 6)
 df.emg_summary %>% filter(emg_corr > 10)
 df.emg_summary %>% filter(participant == 1581)
 ```
+
 ```{r process EMG data}
 # calculate the percentage change compared to the baseline (first 3 seconds)
 df.emg_trial <- df.emg %>% 
@@ -2037,21 +2038,42 @@ ggplot(df.emg_trial_matched, aes(participant, emg_corr_change))+
                                    size = 5, color = "black"))
 ggsave("plots/emg_percent_change_raw_points.png", width = 8, height = 6)
 
-df.emg_trial_matched <- df.emg_trial_matched %>% 
-  filter(emg_corr_change < 15,
-         participant != "5446") #only noise in EMG data
 
-# average across trials
-df.emg_ind <- df.emg_trial_matched %>% 
-  group_by(participant, task, intensity) %>% 
-  summarise(emg_corr_change = mean(emg_corr_change)) %>% 
-  spread(task, emg_corr_change) %>% 
-  rename(emg_change_watch = watch,
-         emg_change_reappraise = reappraise,
-         emg_change_distract = distract)
+# filter out data points that are >3sd away from the mean for each individual
+df.emg_trial_matched_filt <- df.emg_trial_matched %>% 
+  filter(participant != "5446") %>% #only noise
+  group_by(participant) %>% 
+  mutate(mean_change = mean(emg_corr_change),
+         sd_change = sd(emg_corr_change),
+         mean_corr_baseline = mean(corr_baseline),
+         sd_corr_baseline = sd(corr_baseline),
+         mean_corr_picture = mean(corr_picture),
+         sd_corr_picture = sd(corr_picture)) %>% 
+  filter(emg_corr_change <= mean_change + 2.5*sd_change,
+         emg_corr_change >= mean_change - 2.5*sd_change,
+         corr_baseline <= mean_corr_baseline + 2.5*sd_corr_baseline,
+         corr_baseline >= mean_corr_baseline - 2.5*sd_corr_baseline,
+         corr_picture <= mean_corr_picture + 2.5*sd_corr_picture,
+         corr_picture >= mean_corr_picture - 2.5*sd_corr_picture) %>% 
+  ungroup()
+
+ggplot(df.emg_trial_matched_filt, aes(participant, emg_corr_change))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs("EMG percent change for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+ggsave("plots/emg_percent_change_filtered_points.png", width = 8, height = 6)
+
 
 # plot the distribution of EMG percent change
-df.emg_trial_matched %>% 
+df.emg_trial_matched_filt %>% 
   group_by(participant, task, intensity) %>% 
   summarise(emg_corr_change = mean(emg_corr_change)) %>% 
   ggplot(aes(intensity, emg_corr_change,
@@ -2060,16 +2082,25 @@ df.emg_trial_matched %>%
               fill = "white")+
   geom_point(aes(group = participant), alpha = .3)+
   geom_line(aes(group = participant), alpha = .3)+
-  stat_summary(size = 4,
+  stat_summary(size = 1,
                alpha = .5,
                color = "black",
-               fun.y = "mean",
-               geom = "point")+
+               fun.data = "mean_cl_boot",
+               geom = "pointrange")+
   facet_wrap(.~task)+
   labs(title = "Corrugator EMG change from baseline")+
   theme(legend.position = "none")
 
 ggsave("plots/emg_percent_change_distribution.png", width = 8, height = 6)
+
+# average across trials
+df.emg_ind <- df.emg_trial_matched_filt %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(emg_corr_change = mean(emg_corr_change)) %>% 
+  spread(task, emg_corr_change) %>% 
+  rename(emg_change_watch = watch,
+         emg_change_reappraise = reappraise,
+         emg_change_distract = distract)
 
 # merge the individual-level emg data with the ER_psg data
 df.er_psg_emg <- df.er_psg %>% 
@@ -2103,6 +2134,20 @@ mod_tst5c <- lmer(emg_change_watch ~ psg_tst + intensity_num +
                     (1+intensity_num|participant), 
                data = df.er_psg_emg)
 anova(mod_tst5c, mod_tst5)
+
+
+# visualize the data
+df.er_psg_emg$intensity = 
+  factor(df.er_psg_emg$intensity, levels = c("ntr", "low", "mid", "high"))
+                              
+ggplot(df.er_psg_emg,
+       aes(psg_tst, emg_change_watch, color = intensity))+
+  geom_point(alpha = .8)+
+  facet_wrap(.~intensity, nrow = 1)+
+  geom_smooth(method = "lm")+
+  labs(title = "TST and EMG corrugator-reactivity")
+ggsave("plots/tst-corrugator emg correlation.png", width = 8, height = 6)
+
 
 # plot the model
 mod_tst5 %>% 
