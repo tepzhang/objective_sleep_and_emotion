@@ -1,0 +1,362 @@
+---
+title: "psg_data_processing"
+author: "Jinxiao Zhang"
+date: "August 11, 2019"
+output: html_document
+---
+
+```{r load package}
+library(tidyverse)
+library(cowplot)
+```
+
+```{r check psg files}
+linda_folder <- "Z:/SBER/SBER1_physio_R56/SBER_sleepreports_LindaClete/Scored/11.13.18"
+destination_folder <- "Z:/SBER/SBER1_physio_R56/data/brux_scored"
+
+dir_list_scored <- list.dirs(destination_folder)
+sleep_dirs <- grep("[0-9]{4}_BP\\.SLP$", dir_list_scored, value = T)
+
+```
+
+
+```{r PSG data processing}
+#report path: Z:\SBER\SBER1_physio_R56\SBER_sleepreports_LindaClete\Scored\11.13.18\ScoredPsgs_Reports\09.27.18
+#hynogram export path: Z:\SBER\SBER1_physio_R56\data\brux_scored\raw_exports
+
+# the path of raw PSG data
+psg_path = "Z:/SBER/SBER1_physio_R56/data/brux_scored/raw_exports"
+# list and select the hypnogram data files
+psg_files <- list.files(psg_path, full.names = T)
+psg_txt_files <- psg_files[grep("hypno.TXT$", psg_files)]
+# get the participant numbers
+psg_pids <-  str_sub(psg_txt_files, 
+                     str_length(psg_txt_files)-13, 
+                     str_length(psg_txt_files)-10)
+
+#### read files and calculate the sleep staging information #####
+# the raw psg data fram
+df.psg <- data.frame()
+# the data frame of psg summary report
+df.psg_summary <-  data.frame()
+
+for (j in 1:length(psg_pids)){
+  # read a single psg file
+  psg <- read.csv(psg_txt_files[j]) %>% 
+    rename("stage" = "X.") %>% 
+    mutate(pid = psg_pids[j],
+           time = row_number()/2) %>% # t - time in minute
+    select(pid, stage, time)
+
+  
+  # form some cases: replace 1, 2, 3 with N1, N2, N3
+  psg$stage = as.character(psg$stage)
+  psg$stage[psg$stage == "1"] <-  "N1"
+  psg$stage[psg$stage == "2"] <-  "N2"
+  psg$stage[psg$stage == "3"] <-  "N3"
+  
+  # combine the single psg file to the whole data frame
+  df.psg = rbind(df.psg, psg)
+  
+  
+  
+  
+  #### calculate the PSG report for each participant #######
+  # time point of lights out
+  time_light_out = 1
+  for (i in 1:nrow(psg)){
+    if (psg$stage[i] != "?"){
+      time_light_out = i/2 
+      break
+    } 
+  }
+  # time point of sleep onset
+  time_slp_onset = 1
+  for (i in (time_light_out*2):nrow(psg)){
+    if (psg$stage[i] %in% c("N1", "N2", "N3")){
+      time_slp_onset = i/2 
+      break
+    } 
+  }
+  # time point of REM onset
+  time_rem_onset = 1
+  for (i in (time_slp_onset*2):nrow(psg)){
+    if(psg$stage[i] == "R"){
+      time_rem_onset = i/2 
+      break
+    }
+  }
+  # time point of lights on
+  time_light_on = 1
+  for (i in 1:nrow(psg)){
+    if (psg$stage[nrow(psg) +1 - i] != "?"){
+      time_light_on = (nrow(psg) +2 - i)/2 
+      break
+    } 
+  }
+  # time point of sleep offset
+  time_slp_offset = 1
+  for (i in (nrow(psg) - time_light_on*2):nrow(psg)){
+    if (psg$stage[nrow(psg) +1 - i] %in% c("N1", "N2", "N3", "R")){
+      time_slp_offset = (nrow(psg) +2 - i)/2 
+      break
+    } 
+  }
+    # time point of lights out
+  time_light_out = 1
+  for (i in 1:nrow(psg)){
+    if (psg$stage[i] != "?"){
+      time_light_out = i/2 
+      break
+    } 
+  }
+  # total recording time
+  psg_trt = nrow(psg)/2
+  # end recording time (recording after lights on)
+  psg_ert = psg_trt - time_slp_offset
+  # time in bed (time available for sleep)
+  psg_tib = time_light_on - time_light_out
+  # total sleep time
+  psg_tst = psg %>% filter(stage %in% c("N1", "N2", "N3", "R")) %>% nrow()/2
+  # WASO - wake after sleep onset
+  psg_waso = psg %>% 
+    filter(time >= time_slp_onset, time < time_light_on) %>% 
+    filter(stage == "W") %>% 
+    nrow()/2
+  # sleep efficiency
+  psg_slp_eff = psg_tst/psg_tib
+  # sleep onset latency
+  psg_slp_latency = time_slp_onset - time_light_out
+  # REM latency
+  psg_rem_latency = time_rem_onset - time_slp_onset
+  # during the sleep period
+  psg_sleep <- psg %>% 
+    filter(time >= time_slp_onset, time < time_slp_offset) %>% 
+    group_by(stage) %>% 
+    summarise(duration = n()/2) %>% 
+    spread(stage, duration)
+  
+  # wake during sleep period
+  psg_wake = ifelse(is.null(psg_sleep$W[1]), 0, psg_sleep$W[1])
+  # N1 sleep
+  psg_n1 = ifelse(is.null(psg_sleep$N1[1]), 0, psg_sleep$N1[1])
+  psg_n1_perc = psg_n1/psg_tst
+  # N2 sleep
+  psg_n2 = ifelse(is.null(psg_sleep$N2[1]), 0, psg_sleep$N2[1])
+  psg_n2_perc = psg_n2/psg_tst
+  # N3 sleep
+  psg_n3 = ifelse(is.null(psg_sleep$N3[1]), 0, psg_sleep$N3[1])
+  psg_n3_perc = psg_n3/psg_tst
+  # REM sleep
+  psg_rem = ifelse(is.null(psg_sleep$R[1]), 0, psg_sleep$R[1])
+  psg_rem_perc = psg_rem/psg_tst
+  
+  # contrust the PSG summary for one participant
+  psg_summary <- c(psg_pids[j], psg_trt, psg_ert, psg_tib, psg_tst, psg_waso, psg_slp_eff, 
+                   psg_slp_latency, psg_rem_latency, psg_wake, psg_n1, psg_n1_perc,
+                   psg_n2, psg_n2_perc, psg_n3, psg_n3_perc, psg_rem, psg_rem_perc) %>% 
+    as.numeric()
+  # combine the single summary to the whoe summary data frame
+  df.psg_summary <- rbind(df.psg_summary, psg_summary)
+  
+  # set variable names of the summary report
+  if(j == 1){
+    names(df.psg_summary) <- c("pid", "psg_trt", "psg_ert", "psg_tib", "psg_tst", "psg_waso",
+                               "psg_slp_eff", "psg_slp_latency", "psg_rem_latency",
+                               "psg_wake", "psg_n1", "psg_n1_perc", "psg_n2",
+                               "psg_n2_perc", "psg_sws", "psg_sws_perc", 
+                               "psg_rem", "psg_rem_perc")
+  }
+  
+}
+
+# remove psg summary of participants who only have "?" data points
+for (i in 1:nrow(df.psg_summary)){
+  if(df.psg_summary$psg_tst[i] == 0) {
+    # if their total sleep time = 0 (all data points are ?)
+    df.psg_summary[i, 3:17] <- NA # assign NA to all summary statistics except the pid and trt
+  }
+}
+df.psg_summary$pid <- as.character(df.psg_summary$pid)
+
+# check participants with NA data
+# df.psg_summary %>% filter(is.na(psg_tst)) %>% select(pid)
+ 
+
+
+# import the redcap biocalibration log
+df.biocali_redcap <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/redcap/Biocalibration_DATA_2019-03-08_0956.csv") %>% 
+  filter(!participant_id %in% c("3694", "5811"))  # remove the first log of 3694 and 5811  (they have a 2nd psg)
+
+df.biocali_redcap <- df.biocali_redcap %>% 
+  mutate(pid = str_sub(participant_id, 1, 4),
+         pid = ifelse(is.na(as.numeric(subject_id)), pid,
+           ifelse(as.numeric(subject_id) > as.numeric(pid), subject_id, pid)),# e.g. 1070
+         lack_colon = (!is.na(recording_start_time_pst) & 
+                                !grepl(":", recording_start_time_pst)),# decide which cell lacks ":" in the time
+        # insert a ":"
+         recording_start_time_pst_corrected = 
+          ifelse(lack_colon == TRUE,
+                 str_c(str_sub(recording_start_time_pst, 1, 2), ":",
+                       str_sub(recording_start_time_pst, 3, 4), sep = ""),
+                                                     recording_start_time_pst)) 
+
+
+# merge the psg-recording-start-time to psg data
+tmp <- df.psg_summary %>% 
+  left_join(df.biocali_redcap %>% select(pid, recording_start_time_pst_corrected),
+            by = "pid") %>% 
+  mutate(
+    psg_record_start_hour = hour(strptime(recording_start_time_pst_corrected, "%H:%M")), #get the hour of the recording start time
+    psg_record_start = ifelse(
+      psg_record_start_hour <= 12, # is the time in the evening?
+      (strptime(recording_start_time_pst_corrected, "%H:%M") + hours(12)) %>%
+        strftime("%H:%M"),# make corrections if the time is in the morning
+      strptime(recording_start_time_pst_corrected, "%H:%M")%>% 
+        strftime("%H:%M")),
+    psg_record_stop = (strptime(psg_record_start, "%H:%M") + 
+                         minutes(as.integer(psg_trt))) # have to be integer for time calculation
+    %>% strftime("%H:%M"))
+
+# to check the stop-recording time
+tmp %>% arrange(psg_ert) %>% view()
+
+
+## problematic psg data:
+#   5029 - battery died at 3:49
+#   5675 - took the psg off at 3 am
+## recording time < 8 hours
+#   1046 - 275.5; psg stopped recording at 2:32, stopped in REM
+#   3694 - 344.5; psg stopped recording at 3:27, stopped in N2
+#   2001 - 472.5; reported to go to bed at 10:30 and wake up at 6:30, stop-recording time unknown (around 4:30 am), stopped in REM
+#   3741 - 246.5; psg stopped recording at 2:39, stopped in N2
+## total sleep time < 200 minutes
+#   1070 - 170; took off the psg around 4 am; psg stopped recording at 11:07;
+#   1570 - 191.5; reported to go to bed around 12, have 9 hours sleep and waked up at 9:24 on 5/24 - may have taken the psg off - 2 single N2, N3 points way ahead sleep time???
+
+
+## other no end-recording-time cases (should be fine, keep these)
+#   1581 - no end-recording time; go to bed at 11:30, stopped recording around 8:52; reported waked up at 8:50 and got up at 9 - should be fine
+#   5461 - no end-recording time; try to sleep at 9, stopped recording around 4:46; reported waked up at 4:55 and got up at 6:15 - should be fine
+
+# assign tmp to df.psg_summary
+df.psg_summary <- tmp
+
+# remove problematic psg data
+df.psg_summary <- df.psg_summary %>%
+  filter(!pid %in% c("5029", "5675", "1046", "3694", "2001", "1070", "1570", "3741"))
+
+# mark the labels for stage
+df.psg$stage <- factor(df.psg$stage, 
+                         levels = c("?", "N1", "N2", "N3", "R", "W"),
+                         labels = c("?", "N1", "N2", "SWS", "R", "W"))
+
+# # plot the staging data to check
+# ggplot(df.psg %>% filter(pid == "1570"), aes(time, stage))+
+#   geom_point(alpha = .2, size = 1)
+
+# kable(df.psg_summary, digit = 3)
+
+# write the psg dataset
+write_csv(df.psg_summary, "Z:/SBER/SBER1_physio_R56/data/Full_Study/psg_data/final_psg_processed_data/psg_summary.csv")
+
+
+```
+
+```{r combine PSG and ER task data}
+glimpse(df.psg_summary)
+glimpse(df.ER_ind_wide)
+
+# combine ER task data and PSG data
+df.er_psg <- left_join(df.ER_ind_wide, df.psg_summary, 
+                       by = c("participant" = "pid"))
+
+# read individual difference data
+df.ind_diff <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/", 
+                        "processed/FinalDATA104.csv", sep = ""))
+
+# score pers and psqi
+df.ind_diff <- df.ind_diff %>% 
+  mutate(pers_apr = pers_gpr/15, pers_anr = pers_gnr/15)%>% 
+  mutate(psqi_c1 = psqi9,
+         # c1: subjective sleep quality
+         psqi_lat = ifelse(minutestosleep_Minute <= 15, 0, 
+                          ifelse(minutestosleep_Minute >= 16 & 
+                                   minutestosleep_Minute <= 30, 1,
+                                 ifelse(minutestosleep_Minute <= 60 &
+                                          minutestosleep_Minute >= 31, 2,
+                                        ifelse(minutestosleep_Minute > 60, 3, 999)))),
+         psqi_c2 = (psqi_lat + psqi5a + 1) %/% 2,
+         # c2: sleep latency
+         psqi_sd = hourssleep_Hours,
+         psqi_c3 = ifelse(psqi_sd > 7, 0,
+                          ifelse(psqi_sd %in% c(6,7), 1,
+                                 ifelse(psqi_sd %in% c(5,6), 2,
+                                        ifelse(psqi_sd < 5, 3, 999)))),
+         # c3: sleep duration
+         psqi_tib = (timeoutbed_Hour - timetobed_Hour) +
+           (timeoutbed_Minute - timetobed_Minute)/60,
+         psqi_tib = ifelse(psqi_tib < 0, psqi_tib + 12, psqi_tib),
+         psqi_se = psqi_sd/psqi_tib,
+         psqi_se = ifelse(psqi_se > 1, 1, psqi_se),
+         psqi_c4 = ifelse(psqi_se >= .85, 0,
+                          ifelse(psqi_se >= .75 & psqi_se < .85, 1, 
+                          ifelse(psqi_se >= .65 & psqi_se < .75, 2,
+                                 ifelse(psqi_se < .65, 3, 999)))),
+         # c4: sleep efficiency
+         psqi_slp_distb = psqi5a +  psqi5b +  as.numeric(psqi5c) +  psqi5d +  psqi5e + 
+            psqi5f +  psqi5g +  psqi5h +  psqi5i +  
+           ifelse(psqi5j == "#NULL!", 0, as.numeric(psqi5j)),
+         psqi_c5 = ifelse(psqi_slp_distb == 0, 0,
+                          ifelse(psqi_slp_distb <= 9 & psqi_slp_distb >= 1, 1,
+                                 ifelse(psqi_slp_distb <= 18 & psqi_slp_distb >= 10, 2,
+                                        ifelse(psqi_slp_distb <= 27 & 
+                                                 psqi_slp_distb >= 19, 3, 999)))),
+         # c5: sleep disturbance
+         psqi_c6 = psqi6,
+         # c6; use of sleep medication
+         psqi_c7 = (psqi7 + psqi8 + 1) %/% 2,
+         # c7: daytime dysfunction
+         psqi_global = psqi_c1 + psqi_c2 + psqi_c3 + psqi_c4 + 
+           psqi_c5 +psqi_c6 + psqi_c7,
+         # global: sum of 7 components - the global score
+         psqi_score_diff = psqi_total - psqi_global
+         ) 
+
+# add gender and age
+df.er_psg <- df.er_psg %>% 
+  left_join(df.ind_diff %>% 
+              select(partID, age, gender, hourssleep_Hours),
+            by = c("participant" = "partID")) %>% 
+  rename(psqi_sleep_hours = hourssleep_Hours) %>% 
+  mutate(age = as.numeric(age))
+
+# recode the intensity into order ranking
+df.er_psg <- df.er_psg %>% 
+  mutate(intensity_num = ifelse(intensity == "ntr", 0,
+                                ifelse(intensity == "low", 1,
+                                       ifelse(intensity == "mid", 2,
+                                              ifelse(intensity == "high", 3,
+                                                     NA)))))
+
+# check how many participants in df.er_psg have complete data
+df.er_psg %>% 
+  filter(!is.na(psg_tst)) %>%
+  select(participant) %>% 
+  unique()
+
+# check wparticipants who have psg data but not session 2 ER data
+df.psg_summary$pid[!df.psg_summary$pid %in% df.ER_ind_wide$participant]
+# 1061 - only 75 trials in ER task
+# 1152 - only 76 trials in ER task
+# 1574 - 2 data files, did the first block twice
+# 3026 - no IER task data
+# 3032 - no response in the task data
+# 3036 - no IER task data
+
+
+
+# write the combined task and psg data to the server
+write_csv(df.er_psg, "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_PSG_combined_participant_level.csv")
+```
+

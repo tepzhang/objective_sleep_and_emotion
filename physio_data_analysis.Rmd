@@ -1,0 +1,919 @@
+---
+title: "physio_data_analysis"
+author: "Jinxiao Zhang"
+date: "August 6, 2019"
+output: html_document
+---
+
+```{r load package}
+library(tidyverse)
+library(cowplot)
+```
+
+
+```{r read EMG data}
+emg_path = "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/results/emg_results/jinxiao_updates"
+emg_files <- list.files(emg_path, full.names = T, 
+                        pattern = "SBER_R56.EMG_Corr.[0-9]{4}.txt")
+# emg_files <- emg_files[grep("SBER.EMG_Corr.long.[0-9]{4}.*txt$", emg_files)]
+
+# extract the participant numbers
+emg_pids = str_sub(emg_files, str_length(emg_files) - 7, str_length(emg_files) - 4)
+
+# read the datafiles and save to a list
+list.emg <- map(emg_files, ~ read.csv(file = .x, header = F, sep = "\t"))
+
+#view(list.emg[[1]])
+# create the combind dataframe
+df.emg <- bind_rows(list.emg[1:length(list.emg)])
+# add variable names
+names(df.emg) <- c("participant", "task", "trial", "time_segment", "emg_corr")
+df.emg <- df.emg %>% 
+  # filter(time_segment <= 9) %>% # only need the first 9 seconds
+  mutate(participant = as.character(participant))
+# examine the event count from data
+df.event_count_data <- df.emg %>%
+  group_by(participant) %>% 
+  summarise(n = n()/32) # every event has 32 data points (evety .5s for 16s)
+
+
+# event count from EMG processing log
+df.event_count <- read.csv(paste(emg_path, "/SBER_R56.marker_count_final.txt", sep = ""),
+                           header = F) %>% 
+  separate(V1, into = c("lab1", "lab2", "lab3", "lab4", "lab5"), sep = " ") %>% 
+  mutate(subj = str_sub(lab3, 1, 4),
+         count = str_sub(lab5, 1, str_length(lab5)-1))
+# the final event count
+df.event_count_final <- df.event_count %>% 
+  group_by(subj) %>% 
+  filter(row_number() == n()) %>% 
+  mutate(count = as.numeric(count))
+
+
+# check if the event count from data and EMG processing log match
+df.event_count_match <- df.event_count_data %>% 
+  left_join(df.event_count_final %>% select(subj, count), 
+            by = c("participant" = "subj")) %>% 
+  mutate(match = (n == count))
+# print participants whose data don't match
+df.event_count_match %>% filter(match == F)
+
+```
+
+```{r check plotting EMG data}
+
+# check the distribution of data
+# quantile plot
+emg.quantile = quantile(df.emg$emg_corr, probs = seq(0, 1, .01))
+plot(emg.quantile)
+title("EMG quantile")
+abline(h = 20, lty = 2)
+text(x = 90, y = 25, "EMG = 20")
+
+# plot raw data points
+ggplot(df.emg, aes(participant, emg_corr))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs(title = "EMG raw data points for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+
+ggsave("plots/emg_raw_points.png", width = 8, height = 6)
+# suspicious participants whose data showed no "response": 1574, 3181, 5446, 6055
+
+
+
+# visualize the EMG 
+df.emg_summary = df.emg %>% 
+                group_by(participant, time_segment, task) %>% 
+                summarise(emg_corr = mean(emg_corr))
+
+# plot violin distribution
+ggplot(df.emg,aes(task, emg_corr, 
+                  group = participant, color = participant))+
+  geom_violin(df.emg_summary,
+              mapping = aes(group = NULL),
+              color = "black",
+              fill = "white")+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 4,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  # stat_summary(aes(group = NULL),
+  #              size = 1,
+  #              alpha = .5,
+  #              color = "black",
+  #              fun.data = "mean_cl_boot",
+  #              geom = "linerange")+
+  labs(title = "Corrugator EMG (averaged across trials)")+
+  theme(legend.position = "none")
+
+ggsave("plots/emg_distribution.png", width = 8, height = 6)
+
+# plot temporal change in a trial
+df.emg_tmp <- df.emg %>% 
+         group_by(participant,trial) %>% 
+         mutate(emg_corr_baseline = mean(emg_corr[1:4]),
+                emg_corr_change = (emg_corr - emg_corr_baseline)/emg_corr_baseline)
+
+ggplot(df.emg_tmp ,
+       aes(time_segment, emg_corr_change,
+                   group = participant, color = participant))+
+  geom_vline(xintercept = c(2, 8), linetype = 2)+
+  geom_hline(yintercept = 0, linetype = 2)+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 2,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "line")+
+  labs(title = "Time change of EMG in a trial", x = "time (s)")+
+  xlim(0, 16)+
+  theme(legend.position = "none")
+ggsave("plots/emg_time_change_percent.png", width = 8, height = 6)
+
+# plot temporal change with participant label
+ggplot(df.emg_summary, # %>% filter(participant %in% c("3181", "1574", "5446", "6055")),
+       aes(time_segment, emg_corr,
+                   group = participant, color = participant))+
+  geom_line(alpha = .3)+
+  geom_point(alpha = .3)+
+  geom_text(data = df.emg_summary %>% 
+              filter( #participant %in% c("3181", "1574", "5446", "6055"),
+                      time_segment == .5),
+            aes(label = participant), color = "black", alpha = .5,
+            position = position_jitter(width = 1.5, height = .2))+
+  theme(legend.position = "none")
+ggsave("plots/emg_time_change_label.png", width = 8, height = 6)
+# 4 participants' data are at the bottom: 1574, 3181, 5446, 6055
+
+
+# exclude data?
+# df.emg_summary %>% filter(participant == 1581)
+```
+
+
+```{r read EDA data}
+eda_path = "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/results/eda_results"
+
+# read the eda datafiles
+df.scl <- read.csv(file = sprintf("%s/SBER_R56.scl.txt", eda_path),
+                   header = F, sep = "\t")
+df.sra <- read.csv(file = sprintf("%s/SBER_R56.sra.txt", eda_path),
+                   header = F, sep = "\t")
+df.srr <- read.csv(file = sprintf("%s/SBER_R56.srr.txt", eda_path),
+                   header = F, sep = "\t")
+# combine them
+df.eda <- bind_cols(df.scl, df.sra[5], df.srr[5:6]) %>% 
+  set_names(c("participant", "task", "trial", "time_segment", 
+              "scl", "sra", "srr_response", "srr_rate"))%>% 
+  mutate(participant = as.character(participant),
+         sra = ifelse(is.na(sra), 0, sra))
+
+
+# eda trial-level data
+df.eda_raw_trial <- df.eda %>%
+  group_by(participant, trial) %>% 
+  summarise(scl = mean(scl),
+            sra = mean(sra),
+            srr = mean(srr_rate),
+            srr_number = sum(srr_response))
+
+
+# calculate the SCl change relative to the baseline (first 2 seconds)
+df.eda_change_trial <- df.eda %>% 
+  mutate(event = case_when(time_segment <= 2 ~ "scl_baseline",
+                           time_segment <=8 & time_segment > 2 ~ "scl_picture",
+                           time_segment >8 ~ "scl_rating")) %>% 
+  group_by(participant, trial, event) %>% 
+  summarise(scl = mean(scl)) %>% 
+  spread(event, scl) %>% 
+  ungroup() %>% 
+  mutate(scl_change_pic = (scl_picture - scl_baseline),
+         scl_change_rat = (scl_rating - scl_baseline))
+
+
+df.eda_trial <- df.eda_raw_trial %>% 
+  full_join(df.eda_change_trial, by = c("participant", "trial"))
+
+```
+
+```{r check plotting EDA data}
+# plot raw data points
+ggplot(df.eda, aes(participant, scl))+
+  geom_point(alpha = .05, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs(title = "Raw skin-conductance level data points for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+# suspicious participants whose data showed no activity: 1574, 1793, 3142, 6055
+
+ggsave("plots/scl_raw_points.png", width = 8, height = 6)
+
+
+# plot temporal change in a trial
+df.eda_tmp <- df.eda %>% 
+         group_by(participant,trial) %>% 
+         mutate(scl_baseline = mean(scl[1:4]),
+                scl_change = (scl - scl_baseline))
+
+ggplot(df.eda_tmp ,
+       aes(time_segment, scl_change,
+                   group = participant, color = participant))+
+  geom_vline(xintercept = c(2, 8), linetype = 2)+
+  geom_hline(yintercept = 0, linetype = 2)+
+  stat_summary(fun.y = "mean",
+               geom = "line",
+               alpha = .3)+
+  stat_summary(fun.y = "mean",
+               geom = "point",
+               alpha = .3)+
+  stat_summary(aes(group = NULL),
+               size = 2,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "point")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "linerange")+
+  stat_summary(aes(group = NULL),
+               size = 1,
+               alpha = .5,
+               color = "black",
+               fun.y = "mean",
+               geom = "line")+
+  # xlim(0,8)+
+  labs(title = "Time change of SCL in a trial (relative to baseline)", x = "time (s)")+
+  theme(legend.position = "none")
+ggsave("plots/scl_time_change_percent.png", width = 8, height = 6)
+
+```
+
+```{r match physio data}
+# check the trial number match across the emg and eda data
+df.event_count_match_update <- df.event_count_match %>% 
+  rename(n_emg = n, count_log = count) %>% 
+  full_join(df.eda %>% group_by(participant) %>% summarise(n_eda = n()/32), 
+            by = c("participant" )) %>% 
+  mutate(match_emg_eda = (n_emg == n_eda))
+
+
+# calculate the Corr-EMG percentage change compared to the baseline (first 2 seconds)
+df.emg_trial <- df.emg %>% 
+  mutate(event = case_when(time_segment <= 2 ~ "corr_baseline",
+                           time_segment <=8 & time_segment > 2 ~ "corr_picture",
+                           time_segment >8 ~ "corr_rating")) %>% 
+  group_by(participant, trial, event) %>% 
+  summarise(emg_corr = mean(emg_corr)) %>% 
+  spread(event, emg_corr) %>% 
+  ungroup() %>% 
+  mutate(emg_corr_change_pic = (corr_picture - corr_baseline)/corr_baseline,
+         emg_corr_change_rat = (corr_rating - corr_baseline)/corr_baseline)
+
+
+# merge the trial-level emg and eda data
+df.physio_trial <- df.emg_trial %>% 
+  full_join(df.eda_trial,
+            by = c("participant", "trial"))
+
+# remove participants who had less than 100 trials
+df.physio_trial <- df.physio_trial %>% 
+  group_by(participant) %>% 
+  mutate(n_trial = n()) %>% 
+  filter(n_trial > 100) #1061, 1152 were filtered out
+
+# read trial-level ER task data
+agg_df <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_trial_level.csv") %>% 
+  mutate(participant = as.character(participant))
+
+# check the number of trials in ER_task data and the EMG data
+df.event_count_task_physio <- df.physio_trial %>% 
+  group_by(participant) %>% 
+  summarise(n_trial_physio = n()) %>% 
+  full_join(agg_df %>% 
+              group_by(participant) %>% 
+              summarise(n_trial_task = n()),
+            by = "participant") %>% 
+  mutate(n_diff = n_trial_physio - n_trial_task) %>% 
+  arrange(n_diff)
+## participants who only had emg data but no (sufficient) task data
+# 1341 - has full emg data but no task data
+# 1574 - has 179 trials in emg data but the task data only has 72 trials --> exclude
+# 2301 - has full emg data but no task data
+# 3026 - has full emg data but no task data
+# 3036 - has full emg data but no task data
+
+## participants who only had task data but not emg data
+# 1016 - marker mulfunctioning, no markers for tasks
+# 1062 - error reading data ("Error in combining channel groups!")
+# 1190 - only two marker events (2, 8); no 182 markers
+# 1222 - only one marker event (2); no 182 markers
+# 1348 - can't read data... R gets stuck
+# 1465 - error reading data (error: MWI and MWX files mismatch; please check filenames!)
+# 1501 - can't read data... R gets stuck
+# 1515 - no mindware data
+
+## participants whose data need to be manually matched
+# 3003 - 103 trials in emg data and 102 trials in task data --> retain first 102 trials
+# 3142 - 131 trials in emg data and 130 trials in task data --> retain first 130 trials
+# 1062 - emg data has 179 trials and task data has 180 trials --> match the first 179 trials
+# 1451 - emg data has the last 154 trials and task data has 180 --> match the emg data to the last 154 trials
+# 1511 - emg data has 170 trials (1st file had the first 41 trials and 2nd file had the last 129 trials) and task data has 180 --> match 41 to the head and 129 to the tail
+# 1754 - emg data has 222 trials (65+157) and task data has 244 trials (64+180) --> emg data: retain the last 157 trials, task data： retain the last 180 trials, and match them to head
+# 2320 - emg data has 166 trials and task data has 180 trials --> match the first 166 trials
+
+
+
+## function for selecting data for a specific participant in the aggregated dataframe
+select_trial <- function(agg_data, id, start, end, exclude = FALSE){
+  #the variable name for id must be "participant" in the aggregated_data
+  # agg_data: aggregated data frame
+  # id: participant id
+  # start: starting trial number to choose
+  # end: ending trial number to choose
+  id = as.character(id)
+  if(exclude == FALSE){ # retain trial between start and end
+    df.ind  <- agg_data %>% 
+      filter(participant == id) %>% filter(row_number() >= start, row_number() <= end)}
+  else{# exclude trial between start and end
+    df.ind  <- agg_data %>% 
+      filter(participant == id) %>% filter(row_number() <= start | row_number() >= end)
+  }
+  agg_data_update <- agg_data %>% filter(participant != id) %>% bind_rows(df.ind)
+  
+  return(agg_data_update)
+}
+
+
+### manually matching the data of some subjects 
+df.physio_trial_update <- df.physio_trial
+agg_df_update <- agg_df
+
+# 3003 - 103 trials in physio data and 102 trials in task data --> retain first 102 trials
+df.physio_trial_update <- select_trial(df.physio_trial_update, "3003", 1, 102)
+# 3142 - 131 trials in physio data and 130 trials in task data --> retain first 130 trials
+df.physio_trial_update <- select_trial(df.physio_trial_update, "3142", 1, 130)
+# 1062 - physio data has 179 trials and task data has 180 trials --> match the first 179 trials
+agg_df_update <- select_trial(agg_df_update, "1062", 1, 179)
+# 1451 - physio data has the last 154 trials and task data has 180 --> match the physio data to the last 154 trials
+agg_df_update <- select_trial(agg_df_update, "1451", 180-154+1, 180)
+# 1511 - physio data has 170 trials (1st file had the first 41 trials and 2nd file had the last 129 trials) and task data has 180 --> match 41 to the head and 129 to the tail
+agg_df_update <- select_trial(agg_df_update, "1511", 41, 52, exclude = T)
+# 1754 - physio data has 222 trials (65+157) and task data has 244 trials (64+180) --> physio data: retain the last 157 trials, task data： retain the last 180 trials, and match them to head
+agg_df_update <- select_trial(agg_df_update, "1754", 65, 65+157-1)
+# 2320 - physio data has 166 trials and task data has 180 trials --> match the first 166 trials  
+agg_df_update <- select_trial(agg_df_update, "2320", 1, 166)
+
+# # Check the trial number of a particular participant
+# df.physio_trial_update %>% filter(participant == "2320") %>% nrow()
+# agg_df_update %>% filter(participant == "2320") %>% nrow()
+
+
+# after manual matching, check the number of trials in ER_task data and the physio data again
+df.event_count_task_physio_update <- df.physio_trial_update %>% 
+  group_by(participant) %>% 
+  summarise(n_trial_physio = n()) %>% 
+  full_join(agg_df_update %>% 
+              group_by(participant) %>% 
+              summarise(n_trial_task = n()),
+            by = "participant") %>% 
+  mutate(n_diff = n_trial_physio - n_trial_task) %>%
+  arrange(n_diff)
+
+ggplot(df.event_count_task_physio_update %>% 
+         filter(!is.na(n_diff)),
+       aes(n_trial_physio))+
+  geom_histogram(color = "black", fill = "white")+
+  labs(x = "trial number", title = "Histogram of physio data trial number")
+
+# match the trials (participants who had both physio and task data)
+df.physio_trial_matched <-  df.physio_trial_update %>%  
+  group_by(participant) %>% 
+  mutate(trial = row_number()) %>% #update trial number
+  inner_join(agg_df_update %>% 
+               select(participant, intensity, task, 
+                      NegRating.response, ArousalRating.response) %>% 
+               group_by(participant) %>% 
+               mutate(trial = row_number()),
+             by = c("participant", "trial")) %>% 
+  mutate(intensity = factor(intensity, levels = c("ntr", "low", "mid", "high")),
+         task = factor(task, levels = c("watch", "reappraise", "distract")))
+
+
+# write the matched data to the server
+write_csv(df.physio_trial_matched,
+          "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_physio_matched_trial_level.csv")
+
+# df.physio_trial_matched <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_physio_matched_trial_level.csv")
+
+```
+
+```{r check matched EMG data}
+# plot the distribution of trial_level emg_change
+ggplot(df.physio_trial_matched, aes(participant, emg_corr_change_pic))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  # ylim(-1,5)+
+  labs(title = "EMG percent change for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+ggsave("plots/emg_percent_change_raw_points.png", width = 8, height = 6)
+
+
+# filter out data points that are >3sd away from the mean for each individual
+df.physio_trial_matched_filt <- df.physio_trial_matched %>% 
+  group_by(participant) %>% 
+  mutate(mean_change = mean(emg_corr_change_pic),
+         sd_change = sd(emg_corr_change_pic),
+         mean_corr_baseline = mean(corr_baseline),
+         sd_corr_baseline = sd(corr_baseline),
+         mean_corr_picture = mean(corr_picture),
+         sd_corr_picture = sd(corr_picture)) %>% 
+  filter(emg_corr_change_pic <= mean_change + 3*sd_change,
+         emg_corr_change_pic >= mean_change - 3*sd_change) %>% 
+  ungroup()
+
+# plot the distribution of trial_level emg_change after outsider exclusion
+ggplot(df.physio_trial_matched_filt, aes(participant, emg_corr_change_pic))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs("EMG percent change for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+ggsave("plots/emg_percent_change_filtered_points.png", width = 8, height = 6)
+
+
+# plot the distribution of EMG percent change
+df.physio_trial_matched_filt %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(emg_corr_change = mean(emg_corr_change_pic)) %>% 
+  ggplot(aes(intensity, emg_corr_change,
+             color = participant))+
+  geom_violin(color = "black",
+              fill = "white")+
+  geom_point(aes(group = participant), alpha = .3)+
+  geom_line(aes(group = participant), alpha = .3)+
+  stat_summary(size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "pointrange")+
+  facet_wrap(.~task)+
+  labs(title = "Corrugator EMG change from baseline")+
+  theme(legend.position = "none")
+
+ggsave("plots/emg_percent_change_distribution.png", width = 8, height = 6)
+```
+
+```{r correlation between Corr_EMG and rating}
+df.emg_rating_correlation <- df.emg_trial_matched_filt %>% 
+  group_by(participant) %>% 
+  summarise(cor_emg_raw = cor(ArousalRating.response, corr_picture, 
+                              use = "na.or.complete"),
+            cor_emg_change = cor(ArousalRating.response, emg_corr_change_pic, 
+                                 use = "na.or.complete"))
+
+# cor(df.emg_trial_matched_filt$emg_corr_change_pic[df.emg_trial_matched_filt$participant == "1036"],
+#          df.emg_trial_matched_filt$ArousalRating.response[df.emg_trial_matched_filt$participant == "1036"], use = "na.or.complete")
+
+
+
+# scatterplot at the trial level
+# raw EMG activity with rating
+ggplot(df.emg_trial_matched_filt, 
+       aes(ArousalRating.response, corr_picture, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.emg_rating_correlation, 
+            aes(x = 2, y = 40, label = sprintf("r=%0.2f", cor_emg_raw)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("Raw corr EMG and arousal rating (average r = %.2f)", 
+       mean(df.emg_rating_correlation$cor_emg_raw, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/emg_rating_trial_level.png", width = 12, height = 9)
+
+
+# EMG change with rating
+ggplot(df.emg_trial_matched_filt, 
+       aes(ArousalRating.response, emg_corr_change_pic, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.emg_rating_correlation, 
+            aes(x = 2, y = 4, label = sprintf("r=%0.2f", cor_emg_raw)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("Corr EMG change and arousal rating (average r = %.2f)", 
+       mean(df.emg_rating_correlation$cor_emg_change, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/emg_change_rating_trial_level.png", width = 12, height = 9)
+
+
+
+# scatterplot at the individual level
+ggplot(df.er_psg_emg, aes(watch_arou_rating, emg_corr_change_watch, color = intensity))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  facet_wrap(.~intensity)+
+  labs(title = sprintf("Overall correlation: r = %.2f",
+                       cor(df.er_psg_emg$watch_arou_rating,
+                           df.er_psg_emg$emg_corr_change_watch, 
+                           use = "na.or.complete")))+
+  theme(legend.position = "none")
+ggsave("plots/emg_change_rating_indi_level.png", width = 8, height = 6)
+
+ggplot(df.er_psg_emg, aes(watch_arou_rating, emg_corr_raw_watch, color = intensity))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  facet_wrap(.~intensity)+
+  labs(title = sprintf("Overall correlation: r = %.2f",
+                       cor(df.er_psg_emg$watch_arou_rating,
+                           df.er_psg_emg$emg_corr_raw_watch, 
+                           use = "na.or.complete")))+
+  theme(legend.position = "none")
+ggsave("plots/emg_raw_rating_indi_level.png", width = 8, height = 6)
+
+
+# trial-level: raw emg with rating
+cor.test(df.emg_trial_matched_filt$corr_picture,
+         df.emg_trial_matched_filt$ArousalRating.response)
+# trial-level: emg change percentage with rating
+cor.test(df.emg_trial_matched_filt$emg_corr_change_pic,
+         df.emg_trial_matched_filt$ArousalRating.response)
+# individual-level: emg change percentage with rating
+cor.test(df.er_psg_emg$watch_arou_rating, df.er_psg_emg$emg_corr_change_watch)
+cor.test(df.er_psg_emg$watch_arou_rating[df.er_psg_emg$intensity == "low"],
+         df.er_psg_emg$emg_corr_change_watch[df.er_psg_emg$intensity == "low"])
+
+```
+
+
+
+```{r check EDA data}
+# plot the distribution of trial_level emg_change after outsider exclusion
+ggplot(df.physio_trial_matched, aes(participant, scl_change_pic))+
+  geom_point(alpha = .2, 
+             shape = 20, 
+             # size = 2,
+             color = "blue")+
+  stat_summary(fun.y = mean,
+               geom = "point",
+               color = "red",
+               alpha = .5)+
+  labs("SCL change for each participant")+
+  theme(axis.text.x = element_text(hjust = 1, angle = 45, 
+                                   size = 5, color = "black"))
+ggsave("plots/scl_change_points.png", width = 8, height = 6)
+
+
+# plot the distribution of EMG percent change
+df.physio_trial_matched %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(scl_change = mean(scl_change_pic)) %>% 
+  ggplot(aes(intensity, scl_change,
+             color = participant))+
+  geom_violin(color = "black",
+              fill = "white")+
+  geom_point(aes(group = participant), alpha = .3)+
+  geom_line(aes(group = participant), alpha = .3)+
+  stat_summary(size = 1,
+               alpha = .5,
+               color = "black",
+               fun.data = "mean_cl_boot",
+               geom = "pointrange")+
+  facet_wrap(.~task)+
+  labs(title = "SCL change from baseline")+
+  theme(legend.position = "none")
+
+ggsave("plots/scl_change_distribution.png", width = 8, height = 6)
+```
+
+```{r correlation between EDA, EMG, and rating}
+df.physio_correlations <- df.physio_trial_matched %>% 
+  group_by(participant) %>% 
+  summarise(cor_arou_emg_raw = cor(ArousalRating.response, corr_picture, 
+                              use = "na.or.complete"),
+            cor_arou_emg_change = cor(ArousalRating.response, emg_corr_change_pic, 
+                                 use = "na.or.complete"),
+            cor_arou_scl_raw = cor(ArousalRating.response, scl_picture, 
+                              use = "na.or.complete"),
+            cor_arou_scl_change = cor(ArousalRating.response, scl_change_pic, 
+                              use = "na.or.complete"),
+            cor_emg_scl_raw = cor(corr_picture, scl_picture, 
+                              use = "na.or.complete"),
+            cor_emg_scl_change = cor(emg_corr_change_pic, scl_change_pic, 
+                              use = "na.or.complete"))
+
+# cor(df.emg_trial_matched_filt$emg_corr_change_pic[df.emg_trial_matched_filt$participant == "1036"],
+#          df.emg_trial_matched_filt$ArousalRating.response[df.emg_trial_matched_filt$participant == "1036"], use = "na.or.complete")
+
+
+
+# scatterplot at the trial level
+# raw EMG activity with rating
+ggplot(df.physio_trial_matched, 
+       aes(ArousalRating.response, corr_picture, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.physio_correlations, 
+            aes(x = 2, y = 40, label = sprintf("r=%0.2f", cor_arou_emg_raw)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("Raw corr EMG and arousal rating (average r = %.2f)", 
+       mean(df.physio_correlations$cor_arou_emg_raw, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/correlation_emg_rating_trial_level.png", width = 12, height = 9)
+
+
+# EMG change with rating
+ggplot(df.physio_trial_matched, 
+       aes(ArousalRating.response, emg_corr_change_pic, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.physio_correlations, 
+            aes(x = 2, y = 12, label = sprintf("r=%0.2f", cor_arou_emg_change)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("Corr EMG change and arousal rating (average r = %.2f)", 
+       mean(df.physio_correlations$cor_arou_emg_change, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/correlation_emg_change_rating_trial_level.png", width = 12, height = 9)
+
+
+
+# raw scl activity with rating
+ggplot(df.physio_trial_matched, 
+       aes(ArousalRating.response, scl_picture, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.physio_correlations,
+            aes(x = 2, y = 18, label = sprintf("r=%0.2f", cor_arou_scl_raw)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("Raw SCL and arousal rating (average r = %.2f)", 
+       mean(df.physio_correlations$cor_arou_scl_raw, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/correlation_scl_rating_trial_level.png", width = 12, height = 9)
+
+
+# scl change with rating
+ggplot(df.physio_trial_matched, 
+       aes(ArousalRating.response, scl_change_pic, color = participant))+
+  geom_point(alpha = .2, size = 1,
+             position = position_jitter(width = .2, height = 0))+
+  geom_smooth(method = "lm", se = F, 
+              alpha = .2, size = 1)+
+  geom_text(data = df.physio_correlations,
+            aes(x = 2, y = 2, label = sprintf("r=%0.2f", cor_arou_scl_change)))+
+  facet_wrap(.~participant)+
+  labs(title = sprintf("SCL change and arousal rating (average r = %.2f)", 
+       mean(df.physio_correlations$cor_arou_scl_change, na.rm = T)))+
+  theme(legend.position = "none")
+ggsave("plots/correlation_scl_change_rating_trial_level.png", width = 12, height = 9)
+
+
+
+
+# scatterplot at the individual level
+ggplot(df.er_psg_emg, aes(watch_arou_rating, emg_corr_change_watch, color = intensity))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  facet_wrap(.~intensity)+
+  labs(title = sprintf("Overall correlation: r = %.2f",
+                       cor(df.er_psg_emg$watch_arou_rating,
+                           df.er_psg_emg$emg_corr_change_watch, 
+                           use = "na.or.complete")))+
+  theme(legend.position = "none")
+ggsave("plots/emg_change_rating_indi_level.png", width = 8, height = 6)
+
+ggplot(df.er_psg_emg, aes(watch_arou_rating, emg_corr_raw_watch, color = intensity))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  facet_wrap(.~intensity)+
+  labs(title = sprintf("Overall correlation: r = %.2f",
+                       cor(df.er_psg_emg$watch_arou_rating,
+                           df.er_psg_emg$emg_corr_raw_watch, 
+                           use = "na.or.complete")))+
+  theme(legend.position = "none")
+ggsave("plots/emg_raw_rating_indi_level.png", width = 8, height = 6)
+
+
+# trial-level: raw emg with rating
+cor.test(df.emg_trial_matched_filt$corr_picture,
+         df.emg_trial_matched_filt$ArousalRating.response)
+# trial-level: emg change percentage with rating
+cor.test(df.emg_trial_matched_filt$emg_corr_change_pic,
+         df.emg_trial_matched_filt$ArousalRating.response)
+# individual-level: emg change percentage with rating
+cor.test(df.er_psg_emg$watch_arou_rating, df.er_psg_emg$emg_corr_change_watch)
+cor.test(df.er_psg_emg$watch_arou_rating[df.er_psg_emg$intensity == "low"],
+         df.er_psg_emg$emg_corr_change_watch[df.er_psg_emg$intensity == "low"])
+
+```
+
+
+
+```{r calculate individual-level data}
+# average across trials
+df.emg_ind <- df.physiotrial_matched %>% 
+  group_by(participant, task, intensity) %>% 
+  summarise(emg_corr_change = mean(emg_corr_change_pic),
+            emg_corr_raw = mean(corr_picture)) %>% 
+  gather(measure, value, contains("emg_corr")) %>% 
+  unite(task_measure, measure, task) %>% 
+  spread(task_measure, value) 
+
+
+# read individual-level task+PSG data
+df.er_psg <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_PSG_combined_participant_level.csv")%>% 
+  mutate(participant = as.character(participant))
+
+# merge the individual-level emg data with the ER_psg data
+df.er_psg_emg <- df.er_psg %>% 
+  left_join(df.emg_ind, by = c("participant", "intensity"))%>% 
+  mutate(intensity = factor(intensity, levels = c("ntr", "low", "mid", "high")))
+
+
+
+# check who had ER behavioral data but not emg data
+list_no_emg <- (df.er_psg_emg %>% 
+  filter(is.na(emg_corr_change_watch)) %>% 
+  select(participant) %>% 
+  unique())$participant
+
+# write the individual-level emg data to the server
+write_csv(df.er_psg_emg,
+          "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_psg_emg_combined_participant_level.csv")
+
+# gs_data_check %>% 
+#   select(`Participant ID`, IER, `physiology files `) %>% 
+#   filter(`Participant ID` %in% list_no_emg) %>% 
+#   arrange(`Participant ID`) %>% 
+#   filter(`physiology files ` != "N",
+#          !`Participant ID` %in% c(1061, 1152, 5767, 5446)) %>% #these were excluded 
+#   view()
+
+# read the individual-level combined emg data
+df.er_psg_emg <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_psg_emg_combined_participant_level.csv") %>% 
+  mutate(participant = as.character(participant),
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high")))
+
+```
+
+
+```{r analysis: TST and EMG reactivity}
+mod_tst5 <- lmer(emg_change_watch ~ psg_tst*intensity_num +
+                   (1+intensity_num|participant), 
+               data = df.er_psg_emg) # %>% summary()
+# standardized coeffcients
+lmerTest::lmer(scale(emg_corr_change_watch) ~ scale(psg_tst)*scale(intensity_num) +
+                   (1+scale(intensity_num)|participant), 
+               data = df.er_psg_emg) %>% summary()
+
+mod_tst5c <- lmer(emg_change_watch ~ psg_tst + intensity_num +
+                    (1+intensity_num|participant), 
+               data = df.er_psg_emg)
+anova(mod_tst5c, mod_tst5)
+
+
+ggplot(df.er_psg_emg , #%>% filter(!participant %in% c(1574, 3181, 5446, 6055)),
+       aes(psg_tst, emg_corr_change_watch, color = intensity))+
+  geom_point(alpha = .8)+
+  facet_wrap(.~intensity, nrow = 2)+
+  geom_smooth(method = "lm")+
+  labs(title = "TST and EMG corrugator-reactivity")
+ggsave("plots/tst-corr_emg_change correlation.png", width = 8, height = 6)
+
+
+# replot the behavioral task data with TST
+# ggplot(df.er_psg_emg , #%>% filter(!participant %in% c(1574, 3181, 5446, 6055)),
+#        aes(psg_tst, watch_val_rating, color = intensity))+
+#   geom_point(alpha = .8)+
+#   facet_wrap(.~intensity, nrow = 2)+
+#   geom_smooth(method = "lm")+
+#   labs(title = "TST and valence-reactivity")
+# ggsave("plots/tst-reactivity valence.png", width = 8, height = 6)
+
+
+# plot the model
+mod_tst5 %>% 
+  augment()  %>% 
+  clean_names() %>% 
+  mutate(intensity = ifelse(intensity_num == 0, "ntr",
+                            ifelse(intensity_num == 1, "low",
+                                   ifelse(intensity_num == 2, "mid",
+                                          "high"))),
+         intensity = factor(intensity, levels = c("ntr", "low", "mid", "high"))) %>% 
+  ggplot(aes(psg_tst, emg_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3, color = "grey")+
+  geom_point(aes(y = fitted), alpha = .5)+
+  geom_smooth(aes(y = fitted), method = "lm", se = F)+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "model prediction: TST and EMG corrugator-reactivity",
+       x = "total sleep time")+
+  theme(legend.position = "none")
+ggsave("plots/tst-emg models.png", width = 9, height = 6)
+```
+```{r visualization: PSQI and EMG reactivity}
+ggplot(df.er_psg_emg , #%>% filter(!participant %in% c(1574, 3181, 5446, 6055)),
+       aes(psqi_sleep_hours, emg_corr_change_watch, color = intensity))+
+  geom_point(alpha = .8, position = position_jitter(width = .2, height = 0))+
+  facet_wrap(.~intensity, nrow = 2)+
+  geom_smooth(method = "lm")+
+  labs(title = "PSQI and EMG corrugator-reactivity")
+ggsave("plots/psqi-corr_emg_change correlation.png", width = 8, height = 6)
+
+
+ggplot(df.er_psg_emg , #%>% filter(!participant %in% c(1574, 3181, 5446, 6055)),
+       aes(psqi_sleep_hours, emg_corr_raw_watch, color = intensity))+
+  geom_point(alpha = .8, position = position_jitter(width = .2, height = 0))+
+  facet_wrap(.~intensity, nrow = 2)+
+  geom_smooth(method = "lm")+
+  labs(title = "PSQI and EMG corrugator-reactivity")
+ggsave("plots/psqi-corr_emg_raw correlation.png", width = 8, height = 6)
+
+```
+
+
+```{r visualization: REM, SWS and EMG reactivity}
+p_rem_emg <- ggplot(df.er_psg_emg, # %>% filter(psg_rem > 0),
+       aes(psg_rem, emg_corr_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  # xlim(50,200)+
+  labs(title = "REM and EMG corrugator-reactivity",
+       x = "REM sleep time")+
+  theme(legend.position = "none")
+
+p_sws_emg <- ggplot(df.er_psg_emg,
+       aes(psg_sws, emg_corr_change_watch, color = as.factor(intensity_num))) +
+  geom_point(alpha = .3)+
+  geom_smooth(method = "lm")+
+  facet_wrap(.~intensity, nrow = 1)+
+  labs(title = "SWS and EMG corrugator-reactivity",
+       x = "SWS time")+
+  theme(legend.position = "none")
+
+plot_grid(p_rem_emg, p_sws_emg, ncol = 1)
+ggsave("plots/emg_rem_sws.png", width = 9, height = 6)
+```

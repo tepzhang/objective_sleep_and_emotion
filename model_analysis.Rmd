@@ -19,8 +19,6 @@ library("cowplot")
 library("brms")
 library(MuMIn) # calculate R-squared for glm
 
-load("data/workspace_fyp_study2.Rdata")
-
 df.er_psg <- df.er_psg %>% 
   mutate(psg_tst = psg_tst/60)
 # load("df.er_psg.Rdata")
