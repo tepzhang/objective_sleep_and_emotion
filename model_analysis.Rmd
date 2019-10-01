@@ -682,6 +682,74 @@ plot_grid(p_sleep1_brm, p_sleep2_brm, ncol = 1)
 ```
 
 ## Trait-level information (individual difference questionnaires)
+
+```{r read individual difference data}
+# read individual difference data
+df.ind_diff <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_Qualtrics/", 
+                        "processed/FinalDATA104.csv", sep = ""))
+
+# score pers and psqi
+df.ind_diff <- df.ind_diff %>% 
+  mutate(pers_apr = pers_gpr/15, pers_anr = pers_gnr/15)%>% 
+  mutate(psqi_c1 = psqi9,
+         # c1: subjective sleep quality
+         psqi_lat = ifelse(minutestosleep_Minute <= 15, 0, 
+                          ifelse(minutestosleep_Minute >= 16 & 
+                                   minutestosleep_Minute <= 30, 1,
+                                 ifelse(minutestosleep_Minute <= 60 &
+                                          minutestosleep_Minute >= 31, 2,
+                                        ifelse(minutestosleep_Minute > 60, 3, 999)))),
+         psqi_c2 = (psqi_lat + psqi5a + 1) %/% 2,
+         # c2: sleep latency
+         psqi_sd = hourssleep_Hours,
+         psqi_c3 = ifelse(psqi_sd > 7, 0,
+                          ifelse(psqi_sd %in% c(6,7), 1,
+                                 ifelse(psqi_sd %in% c(5,6), 2,
+                                        ifelse(psqi_sd < 5, 3, 999)))),
+         # c3: sleep duration
+         psqi_tib = (timeoutbed_Hour - timetobed_Hour) +
+           (timeoutbed_Minute - timetobed_Minute)/60,
+         psqi_tib = ifelse(psqi_tib < 0, psqi_tib + 12, psqi_tib),
+         psqi_se = psqi_sd/psqi_tib,
+         psqi_se = ifelse(psqi_se > 1, 1, psqi_se),
+         psqi_c4 = ifelse(psqi_se >= .85, 0,
+                          ifelse(psqi_se >= .75 & psqi_se < .85, 1, 
+                          ifelse(psqi_se >= .65 & psqi_se < .75, 2,
+                                 ifelse(psqi_se < .65, 3, 999)))),
+         # c4: sleep efficiency
+         psqi_slp_distb = psqi5a +  psqi5b +  as.numeric(psqi5c) +  psqi5d +  psqi5e + 
+            psqi5f +  psqi5g +  psqi5h +  psqi5i +  
+           ifelse(psqi5j == "#NULL!", 0, as.numeric(psqi5j)),
+         psqi_c5 = ifelse(psqi_slp_distb == 0, 0,
+                          ifelse(psqi_slp_distb <= 9 & psqi_slp_distb >= 1, 1,
+                                 ifelse(psqi_slp_distb <= 18 & psqi_slp_distb >= 10, 2,
+                                        ifelse(psqi_slp_distb <= 27 & 
+                                                 psqi_slp_distb >= 19, 3, 999)))),
+         # c5: sleep disturbance
+         psqi_c6 = psqi6,
+         # c6; use of sleep medication
+         psqi_c7 = (psqi7 + psqi8 + 1) %/% 2,
+         # c7: daytime dysfunction
+         psqi_global = psqi_c1 + psqi_c2 + psqi_c3 + psqi_c4 + 
+           psqi_c5 +psqi_c6 + psqi_c7,
+         # global: sum of 7 components - the global score
+         psqi_score_diff = psqi_total - psqi_global
+         ) 
+
+```
+
+```{r construct ind-level data for reactivity analysis}
+df.all_reactivity <- df.er_physio_neg_reactivity %>%  
+  left_join(df.ind_diff %>% 
+              select(partID, starts_with("psqi_"), starts_with("pers_")),
+            by = c("participant" = "partID")) %>% 
+  left_join(df.er_psg %>% 
+              filter(intensity == "high") %>% 
+              select(participant, age, gender, starts_with("psg_")),
+            by = c("participant"))
+```
+
+
 ```{r pers and psqi}
 ## add psqi and pers to the data
 df.er_psg <- df.er_psg %>% 
@@ -971,6 +1039,53 @@ cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" &
 
 
 ```
+
+
+```{r sleep and EMG reactivity}
+ggplot(df.all_reactivity, aes(psg_tst, emg_corr_change_watch))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  labs(title = sprintf("Correlation between PSG sleep \n and Corrugator EMG change: r = %.2f",
+                       cor(df.all_reactivity$psg_tst,
+                           df.all_reactivity$emg_corr_change_watch, 
+                           use = "na.or.complete")))
+
+
+ggplot(df.all_reactivity, aes(psqi_c1, emg_corr_change_watch))+
+  geom_point(alpha = .5, position = position_jitter(height = 0, width = .15))+
+  geom_smooth(method = "lm", se = F)+
+  labs(title = sprintf("Correlation between PSQI sleep quality \n and Corrugator EMG change: r = %.2f",
+                       cor(df.all_reactivity$psqi_c1,
+                           df.all_reactivity$emg_corr_change_watch, 
+                           use = "na.or.complete")))
+```
+
+```{r sleep and EDA reactivity}
+
+ggplot(df.all_reactivity, aes(psg_tst, scl_change_pic_watch))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  labs(title = sprintf("Correlation between PSG sleep \n and SCL change: r = %.2f",
+                       cor(df.all_reactivity$psg_tst,
+                           df.all_reactivity$scl_change_pic_watch, 
+                           use = "na.or.complete")))
+
+cor.test(df.all_reactivity$psg_tst, df.all_reactivity$scl_change_pic_watch)
+cor.test(df.all_reactivity$psg_tst, df.all_reactivity$scl_baseline_watch)
+cor.test(df.all_reactivity$psg_tst, 
+         df.all_reactivity$scl_baseline_watch+ df.all_reactivity$scl_change_pic_watch)
+
+
+ggplot(df.all_reactivity, aes(psqi_c1, scl_change_pic_watch))+
+  geom_point(alpha = .5, position = position_jitter(height = 0, width = .15))+
+  geom_smooth(method = "lm", se = F)+
+  labs(title = sprintf("Correlation between PSQI sleep quality \n and SCL change: r = %.2f",
+                       cor(df.all_reactivity$psqi_c1,
+                           df.all_reactivity$scl_change_pic_watch, 
+                           use = "na.or.complete")))
+```
+
+
 
 ## generating (fake) hypothesis data
 ```{r}

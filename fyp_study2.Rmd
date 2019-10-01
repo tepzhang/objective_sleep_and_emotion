@@ -1093,6 +1093,7 @@ p_tst_lmer2 <- mod_tst_lmer2 %>%
 plot_grid(p_tst_lmer1, p_tst_lmer2, ncol = 1)
 # ggsave("plots/trial_level_models.png", width = 8, height = 6)
 ```
+
 ```{r trial model: ordered logit}
 
 # factorize valence and arousal rating
