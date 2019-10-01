@@ -692,6 +692,7 @@ df.ind_diff <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/inddiff_
 df.ind_diff <- df.ind_diff %>% 
   mutate(pers_apr = pers_gpr/15, pers_anr = pers_gnr/15)%>% 
   mutate(psqi_c1 = psqi9,
+         psqi_ssq = 3- psqi_c1, # subjective sleep quality recoded
          # c1: subjective sleep quality
          psqi_lat = ifelse(minutestosleep_Minute <= 15, 0, 
                           ifelse(minutestosleep_Minute >= 16 & 
@@ -739,14 +740,22 @@ df.ind_diff <- df.ind_diff %>%
 ```
 
 ```{r construct ind-level data for reactivity analysis}
-df.all_reactivity <- df.er_physio_neg_reactivity %>%  
-  left_join(df.ind_diff %>% 
-              select(partID, starts_with("psqi_"), starts_with("pers_")),
-            by = c("participant" = "partID")) %>% 
+df.all_reactivity <- df.er_physio_neg_reactivity %>%
   left_join(df.er_psg %>% 
               filter(intensity == "high") %>% 
               select(participant, age, gender, starts_with("psg_")),
-            by = c("participant"))
+            by = c("participant"))  %>% 
+  left_join(df.ind_diff %>% 
+              select(partID, starts_with("psqi_"), starts_with("pers_")),
+            by = c("participant" = "partID"))
+
+# write the data for reactivity analysis to the server
+write_csv(df.all_reactivity,
+          "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/data_all_for_reactivity_participant_level.csv")
+
+df.all_reactivity <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/data_all_for_reactivity_participant_level.csv") %>% 
+  mutate(participant = as.character(participant))
+
 ```
 
 
@@ -1042,47 +1051,126 @@ cor.test(df.er_psg$pers_anr[df.er_psg$intensity=="high" &
 
 
 ```{r sleep and EMG reactivity}
-ggplot(df.all_reactivity, aes(psg_tst, emg_corr_change_watch))+
+df.emg_sleep_corr <- data.frame(
+  participant = rep(df.all_reactivity$participant, 3),
+  reactivity = rep(df.all_reactivity$emg_corr_change_watch, 3),
+  sleep = c(df.all_reactivity$psqi_ssq,
+            df.all_reactivity$psqi_sd,
+            df.all_reactivity$psg_tst),
+  sleep_measure = rep(c("Subj slp quality", 
+                        "Subj slp duration", 
+                        "PSG slp duration"),
+                   each = 80)) %>% 
+  mutate(sleep_measure = factor(sleep_measure, 
+                                levels = c("Subj slp quality", 
+                                           "Subj slp duration", 
+                                           "PSG slp duration")))
+
+tb.emg_sleep_corr <- df.emg_sleep_corr %>% group_by(sleep_measure) %>% 
+  summarise(correlation = cor(sleep,
+                           reactivity, 
+                           use = "na.or.complete"))
+
+ggplot(df.emg_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
   geom_point(alpha = .5)+
   geom_smooth(method = "lm", se = F)+
-  labs(title = sprintf("Correlation between PSG sleep \n and Corrugator EMG change: r = %.2f",
-                       cor(df.all_reactivity$psg_tst,
-                           df.all_reactivity$emg_corr_change_watch, 
-                           use = "na.or.complete")))
+  geom_text(data = tb.emg_sleep_corr,
+            color = "black",
+            aes(x = c(1, 4, 5), y = 0.8,
+                label = sprintf("r=%0.2f", correlation)),
+            hjust = 0, vjust = 0)+
+  facet_wrap(.~sleep_measure, scales = "free")+
+  labs(y = "Corrugator EMG reactivity", x = "Sleep")+
+  theme(legend.position = "none")
 
-
-ggplot(df.all_reactivity, aes(psqi_c1, emg_corr_change_watch))+
-  geom_point(alpha = .5, position = position_jitter(height = 0, width = .15))+
-  geom_smooth(method = "lm", se = F)+
-  labs(title = sprintf("Correlation between PSQI sleep quality \n and Corrugator EMG change: r = %.2f",
-                       cor(df.all_reactivity$psqi_c1,
-                           df.all_reactivity$emg_corr_change_watch, 
-                           use = "na.or.complete")))
 ```
 
 ```{r sleep and EDA reactivity}
+df.eda_sleep_corr <- data.frame(
+  participant = rep(df.all_reactivity$participant, 3),
+  reactivity = rep(df.all_reactivity$scl_change_pic_watch, 3),
+  # scl_baseline_watch = rep(df.all_reactivity$scl_baseline_watch, 3),
+  sleep = c(df.all_reactivity$psqi_ssq,
+            df.all_reactivity$psqi_sd,
+            df.all_reactivity$psg_tst),
+  sleep_measure = rep(c("Subj slp quality", 
+                        "Subj slp duration", 
+                        "PSG slp duration"),
+                   each = 80)) %>% 
+  mutate(sleep_measure = factor(sleep_measure, 
+                                levels = c("Subj slp quality", 
+                                           "Subj slp duration", 
+                                           "PSG slp duration")))
 
-ggplot(df.all_reactivity, aes(psg_tst, scl_change_pic_watch))+
+tb.eda_sleep_corr <- df.eda_sleep_corr %>% group_by(sleep_measure) %>% 
+  summarise(correlation = cor(sleep,
+                           reactivity, 
+                           use = "na.or.complete"))
+
+ggplot(df.eda_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
   geom_point(alpha = .5)+
   geom_smooth(method = "lm", se = F)+
-  labs(title = sprintf("Correlation between PSG sleep \n and SCL change: r = %.2f",
-                       cor(df.all_reactivity$psg_tst,
-                           df.all_reactivity$scl_change_pic_watch, 
-                           use = "na.or.complete")))
+  geom_text(data = tb.eda_sleep_corr,
+            color = "black",
+            aes(x = c(1, 4, 5), y = 0.1,
+                label = sprintf("r=%0.2f", correlation)),
+            hjust = 0, vjust = 0)+
+  facet_wrap(.~sleep_measure, scales = "free")+
+  labs(y = "SCL-change reactivity", x = "Sleep")+
+  theme(legend.position = "none")
 
-cor.test(df.all_reactivity$psg_tst, df.all_reactivity$scl_change_pic_watch)
-cor.test(df.all_reactivity$psg_tst, df.all_reactivity$scl_baseline_watch)
-cor.test(df.all_reactivity$psg_tst, 
-         df.all_reactivity$scl_baseline_watch+ df.all_reactivity$scl_change_pic_watch)
+
+```
+```{r all sleep and reactivity}
+df.reactivity_sleep_corr <- data.frame(
+  participant = rep(df.all_reactivity$participant, 12),
+  reactivity = c(rep(df.all_reactivity$emg_corr_change_watch, 3),
+                 rep(df.all_reactivity$scl_change_pic_watch, 3),
+                 rep(df.all_reactivity$watch_arou_rating, 3),
+                 rep(df.all_reactivity$pers_anr, 3)),
+  sleep = rep(c(df.all_reactivity$psqi_ssq,
+                df.all_reactivity$psqi_sd,
+                df.all_reactivity$psg_tst), 4),
+  reactivity_measure = rep(c("Corrugator EMG change", 
+                             "SCL change", 
+                             "Arousal rating",
+                             "PERS negative reactivity"),
+                           each = 240),
+  sleep_measure = rep(rep(c("Subj slp quality", 
+                            "Subj slp duration", 
+                            "PSG slp duration"),
+                          each = 80), 4)) %>% 
+  mutate(reactivity_measure = factor(reactivity_measure, 
+                                     levels = c( "PERS negative reactivity",
+                                                 "Arousal rating",
+                                                 "Corrugator EMG change", 
+                                                 "SCL change")),
+         sleep_measure = factor(sleep_measure, 
+                                levels = c("Subj slp quality", 
+                                           "Subj slp duration", 
+                                           "PSG slp duration")))
+
+# generate the correlation table
+tb.reactivity_sleep_corr <- df.reactivity_sleep_corr %>% 
+  group_by(reactivity_measure, sleep_measure) %>% 
+  summarise(correlation = cor(sleep,
+                           reactivity, 
+                           use = "na.or.complete"))
 
 
-ggplot(df.all_reactivity, aes(psqi_c1, scl_change_pic_watch))+
-  geom_point(alpha = .5, position = position_jitter(height = 0, width = .15))+
+ggplot(df.reactivity_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
+  geom_point(alpha = .5)+
   geom_smooth(method = "lm", se = F)+
-  labs(title = sprintf("Correlation between PSQI sleep quality \n and SCL change: r = %.2f",
-                       cor(df.all_reactivity$psqi_c1,
-                           df.all_reactivity$scl_change_pic_watch, 
-                           use = "na.or.complete")))
+  geom_text(data = tb.reactivity_sleep_corr,
+            color = "black",
+            aes(x = rep(c(0.1,4,5),4), y = rep(c(4.1,4,.7,.1), each = 3),
+                label = sprintf("r=%0.2f", correlation)),
+            hjust = 0, vjust = 0)+
+  facet_grid(reactivity_measure ~ sleep_measure , scales = "free")+
+  labs(y = "Reactivity", x = "Sleep")+
+  theme(legend.position = "none")
+
+ggsave("plots/sleep_reactivity_all_measures.png", width = 6, height = 8)
 ```
 
 
