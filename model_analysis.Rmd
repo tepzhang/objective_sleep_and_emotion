@@ -744,6 +744,30 @@ df.ind_diff <- df.ind_diff %>%
 df.diary <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/diary_Qualtrics/processed/processed_ready_for_analysis/diary_pmam_joined.csv") %>% 
   mutate(participant = as.character(ID)) 
 
+# diary first night (with PSG)
+df.diary_1st <- df.diary %>% 
+  select(participant, StartDate_PM, StartDate_PM_PST, 
+         emoarousaltoday_PM, negativetoday_PM,
+         self_tst, totalsleeptime_AM, Sleep_Efficiency, 
+         subjsleepquality_AM_intgr, satisfiedsleep_AM) %>%
+  rename(startdate_am = StartDate_PM, startdate_pm = StartDate_PM_PST) %>% 
+  filter(totalsleeptime_AM >= 120) %>% 
+  group_by(participant) %>% 
+  summarise(totalsleeptime = totalsleeptime_AM[1],
+            subjsleepquality = subjsleepquality_AM_intgr[1],
+            negativetoday = negativetoday_PM[2],
+            emoarousaltoday = emoarousaltoday_PM[2]) %>% 
+  ungroup() %>% 
+  full_join(df.all_reactivity %>% select(participant, contains("psg_")),
+            by = "participant")
+
+ggpairs(df.diary_1st %>% 
+          select(totalsleeptime, negativetoday, emoarousaltoday, 
+                 psg_tst, psg_slp_eff, psg_waso),
+        lower = list(continuous = wrap("smooth", alpha = 0.4, color = "blue")))
+ggsave("plots/diary_fist_night_correlation.png", width = 8, height = 8)
+
+# averaged individual level data
 df.diary %>% glimpse()
 
 df.diary_ind <- df.diary %>% 
@@ -812,9 +836,13 @@ df.psg_date <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/redcap/Biocali
   filter(row_number() == n()) %>% 
   ungroup()
 
+df.scl_baseline1_ER <-read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/SCL_baseline_task_to_ER_task.csv") %>% 
+  mutate(participant = as.character(participant))
+
 df.all_reactivity <- df.all_reactivity %>% 
   left_join(df.er_date, by = "participant") %>% 
-  left_join(df.psg_date, by = "participant")
+  left_join(df.psg_date, by = "participant") %>% 
+  left_join(df.scl_baseline1_ER, by = "participant")
 
 # write the data for reactivity analysis to the server
 write_csv(df.all_reactivity,
