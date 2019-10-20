@@ -1289,14 +1289,21 @@ ggsave("plots/sleep_reactivity_all_measures.png", width = 12, height = 12)
 library(GGally)
 
 ggpairs(df.all_reactivity %>% 
-                  select(psqi_sd,
-                         psqi_ssq,
-                         totalsleeptime_diary,
-                         subjsleepquality_diary,
-                         psg_tst,
-                         psg_slp_eff,
-                         psg_waso),
-                lower = list(continuous = wrap("smooth", alpha = 0.4, color = "blue")))
+          select(psqi_sd,
+                 psqi_ssq,
+                 totalsleeptime_diary,
+                 subjsleepquality_diary,
+                 psg_tst,
+                 psg_slp_eff,
+                 psg_waso),
+        lower = list(continuous = wrap("smooth", alpha = 0.4, color = "blue")),
+        columnLabels = c("PSQI slp duration",
+                         "PSQI slp quality", 
+                         "diary slp duartion",
+                         "diary slp quality",
+                         "PSG slp duration",
+                         "PSG slp efficiency",
+                         "PSG WASO"))
 ggsave("plots/internal_correlation_sleep.png", width = 9, height = 9)
 
 
@@ -1309,7 +1316,7 @@ ggpairs(df.all_reactivity %>%
                  scl_change_pic_watch, 
                  sra_change_pic_watch,
                  srr_change_pic_watch),
-        lower = list(continuous = wrap("smooth", alpha = 0.4, color = "blue"))，
+        lower = list(continuous = wrap("smooth", alpha = 0.4, color = "blue")),
         columnLabels = c("PERS reactivity",
                          "Diary negative",
                          "Valence rating",
