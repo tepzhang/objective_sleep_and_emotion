@@ -195,6 +195,7 @@ df.sra <- read.csv(file = sprintf("%s/SBER_R56.sra.txt", eda_path),
                    header = F, sep = "\t")
 df.srr <- read.csv(file = sprintf("%s/SBER_R56.srr.txt", eda_path),
                    header = F, sep = "\t")
+
 # combine them
 df.eda <- bind_cols(df.scl, df.sra[5], df.srr[5:6]) %>% 
   set_names(c("participant", "task", "trial", "time_segment", 
@@ -214,15 +215,24 @@ df.eda_raw_trial <- df.eda %>%
 
 # calculate the SCl change relative to the baseline (first 2 seconds)
 df.eda_change_trial <- df.eda %>% 
-  mutate(event = case_when(time_segment <= 2 ~ "scl_baseline",
-                           time_segment <=8 & time_segment > 2 ~ "scl_picture",
-                           time_segment >8 ~ "scl_rating")) %>% 
+  mutate(event = case_when(time_segment <= 2 ~ "baseline",
+                           time_segment <=8 & time_segment > 2 ~ "picture",
+                           time_segment >8 ~ "rating")) %>% 
   group_by(participant, trial, event) %>% 
-  summarise(scl = mean(scl)) %>% 
-  spread(event, scl) %>% 
+  summarise(scl = mean(scl),
+            sra = mean(sra),
+            srr = mean(srr_rate),
+            srr_number = sum(srr_response)) %>% 
+  gather(label, eda, scl, sra, srr, srr_number) %>% 
+  unite(new_label, label, event, sep = "_") %>% 
+  spread(new_label, eda) %>% 
   ungroup() %>% 
   mutate(scl_change_pic = (scl_picture - scl_baseline),
-         scl_change_rat = (scl_rating - scl_baseline))
+         scl_change_rat = (scl_rating - scl_baseline),
+         sra_change_pic = (sra_picture - sra_baseline),
+         sra_change_rat = (sra_rating - sra_baseline),
+         srr_change_pic = (srr_picture - srr_baseline),
+         srr_change_rat = (srr_rating - srr_baseline))
 
 
 df.eda_trial <- df.eda_raw_trial %>% 
@@ -486,7 +496,7 @@ df.emg_trial_matched_filt <- df.physio_trial_matched %>%
   ungroup()
 
 # plot the distribution of trial_level emg_change after outsider exclusion
-ggplot(df.physio_trial_matched_filt, aes(participant, emg_corr_change_pic))+
+ggplot(df.emg_trial_matched_filt, aes(participant, emg_corr_change_pic))+
   geom_point(alpha = .2, 
              shape = 20, 
              # size = 2,
@@ -502,7 +512,7 @@ ggsave("plots/emg_percent_change_filtered_points.png", width = 8, height = 6)
 
 
 # plot the distribution of EMG percent change
-df.physio_trial_matched_filt %>% 
+df.emg_trial_matched_filt %>% 
   group_by(participant, task, intensity) %>% 
   summarise(emg_corr_change = mean(emg_corr_change_pic)) %>% 
   ggplot(aes(intensity, emg_corr_change,
@@ -702,8 +712,12 @@ df.emg_ind <- df.emg_trial_matched_filt %>%
 df.eda_ind <- df.physio_trial_matched %>% 
   group_by(participant, task, intensity) %>% 
   summarise(scl_baseline = mean(scl_baseline),
-            scl_change_pic = mean(scl_change_pic)) %>% 
-  gather(measure, value, contains('scl')) %>% 
+            scl_change_pic = mean(scl_change_pic),
+            sra_baseline = mean(sra_baseline),
+            sra_change_pic = mean(sra_change_pic),
+            srr_baseline = mean(srr_baseline),
+            srr_change_pic = mean(srr_change_pic)) %>% 
+  gather(measure, value, matches('scl|sra|srr')) %>% 
   unite(task_measure, measure, task) %>% 
   spread(task_measure, value)
 
@@ -759,7 +773,11 @@ df.er_physio_neg_reactivity <- df.er_psg_physio %>%
             emg_corr_change_watch = mean(emg_corr_change_watch),
             emg_corr_raw_watch = mean(emg_corr_raw_watch),
             scl_baseline_watch = mean(scl_baseline_watch),
-            scl_change_pic_watch = mean(scl_change_pic_watch))
+            scl_change_pic_watch = mean(scl_change_pic_watch),
+            sra_baseline_watch = mean(sra_baseline_watch),
+            sra_change_pic_watch = mean(sra_change_pic_watch),
+            srr_baseline_watch = mean(srr_baseline_watch),
+            srr_change_pic_watch = mean(srr_change_pic_watch))
 
 
 

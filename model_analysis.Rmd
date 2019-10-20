@@ -739,6 +739,38 @@ df.ind_diff <- df.ind_diff %>%
 
 ```
 
+```{r read sleep diary data}
+# read individual difference data
+df.diary <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/diary_Qualtrics/processed/processed_ready_for_analysis/diary_pmam_joined.csv") %>% 
+  mutate(participant = as.character(ID)) %>% 
+  filter(! participant %in% c("1001", "1002")) # exclude pilot data
+
+df.diary %>% glimpse()
+
+df.diary_ind <- df.diary %>% 
+  select(participant, StartDate_PM, StartDate_PM_PST, 
+         emoarousaltoday_PM, negativetoday_PM,
+         self_tst, totalsleeptime_AM, Sleep_Efficiency, 
+         subjsleepquality_AM_intgr, satisfiedsleep_AM) %>%
+  rename(startdate_am = StartDate_PM, startdate_pm = StartDate_PM_PST) %>% 
+  filter(totalsleeptime_AM >= 120) %>% 
+  group_by(participant) %>% 
+  summarise(startdate_diary = startdate_pm[1],
+            enddate_diary = startdate_am[n()],
+            diary_count = n(),
+            emoarousaltoday_diary = mean(emoarousaltoday_PM, na.rm = T),
+            negativetoday_diary = mean(negativetoday_PM, na.rm = T),
+            totalsleeptime_diary = mean(totalsleeptime_AM, na.rm = T),
+            sleep_efficiency_diary = mean(Sleep_Efficiency, na.rm = T),
+            subjsleepquality_diary = mean(subjsleepquality_AM_intgr, na.rm = T),
+            satisfiedsleep_diary = mean(satisfiedsleep_AM, na.rm = T)) %>% 
+  filter(diary_count >= 10) %>% # exclude cases who had insufficient days
+  mutate(startdate_diary = str_c('20', str_sub(startdate_diary, 3, -1)),
+         enddate_diary = str_c('20', str_sub(enddate_diary, 3, -1))) # fix the year format
+
+```
+
+
 ```{r construct ind-level data for reactivity analysis}
 df.all_reactivity <- df.er_physio_neg_reactivity %>%
   left_join(df.er_psg %>% 
@@ -746,8 +778,34 @@ df.all_reactivity <- df.er_physio_neg_reactivity %>%
               select(participant, age, gender, starts_with("psg_")),
             by = c("participant"))  %>% 
   left_join(df.ind_diff %>% 
-              select(partID, starts_with("psqi_"), starts_with("pers_")),
-            by = c("participant" = "partID"))
+              select(EndDate, partID, starts_with("psqi_"), starts_with("pers_")) %>% 
+              rename(enddate_inddiff = EndDate),
+            by = c("participant" = "partID")) %>% 
+  left_join(df.diary_ind, by = "participant") %>% 
+  filter(! participant %in% c("1001", "1002")) # exclude pilot data
+  
+
+#add date information
+df.er_date <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/IER_trial_level.csv") %>% 
+  select(participant, date) %>% 
+  mutate(participant = as.character(participant)) %>% 
+  group_by(participant) %>% 
+  summarise(date_er_task = date[1])
+
+df.psg_date <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/redcap/Biocalibration_DATA_2019-03-08_0956.csv") %>% 
+  filter(!participant_id %in% c("3694", "5811")) %>%   # remove the first log of 3694 and 5811  (they have a 2nd psg) 
+  mutate(pid = str_sub(participant_id, 1, 4),
+         pid = ifelse(is.na(as.numeric(subject_id)), pid,
+           ifelse(as.numeric(subject_id) > as.numeric(pid), subject_id, pid))) %>% 
+  rename(participant = pid, date_psg = date_of_visit) %>% 
+  select(participant, date_psg) %>% 
+  group_by(participant) %>% 
+  filter(row_number() == n()) %>% 
+  ungroup()
+
+df.all_reactivity <- df.all_reactivity %>% 
+  left_join(df.er_date, by = "participant") %>% 
+  left_join(df.psg_date, by = "participant")
 
 # write the data for reactivity analysis to the server
 write_csv(df.all_reactivity,
@@ -756,6 +814,21 @@ write_csv(df.all_reactivity,
 df.all_reactivity <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/data_all_for_reactivity_participant_level.csv") %>% 
   mutate(participant = as.character(participant))
 
+```
+
+
+```{r time gap between measurements}
+date_inddiff = df.all_reactivity$enddate_inddiff %>% strptime("%m/%d/%y")
+date_psg = df.all_reactivity$date_psg %>% strptime("%Y-%m-%d")
+date_diary_start = df.all_reactivity$startdate_diary %>% strptime("%Y-%m-%d")
+date_diary_end = df.all_reactivity$enddate_diary %>% strptime("%Y-%m-%d")
+date_er = df.all_reactivity$date_er_task %>% strptime("%Y_%b_%d")
+
+difftime(date_psg, date_inddiff, units = "days") %>% as.numeric() %>% hist()
+difftime(date_diary_start, date_inddiff, units = "days")
+difftime(date_diary_end, date_psg, units = "days")
+difftime(date_er, date_psg, units = "days") 
+difftime(date_er, date_inddiff, units = "days") %>% as.numeric() %>% mean(na.rm = T)
 ```
 
 
@@ -1089,7 +1162,7 @@ ggplot(df.emg_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
 df.eda_sleep_corr <- data.frame(
   participant = rep(df.all_reactivity$participant, 3),
   reactivity = rep(df.all_reactivity$scl_change_pic_watch, 3),
-  # scl_baseline_watch = rep(df.all_reactivity$scl_baseline_watch, 3),
+  scl_baseline_watch = rep(df.all_reactivity$scl_baseline_watch, 3),
   sleep = c(df.all_reactivity$psqi_ssq,
             df.all_reactivity$psqi_sd,
             df.all_reactivity$psg_tst),
@@ -1104,6 +1177,7 @@ df.eda_sleep_corr <- data.frame(
 
 tb.eda_sleep_corr <- df.eda_sleep_corr %>% group_by(sleep_measure) %>% 
   summarise(correlation = cor(sleep,
+                              # scl_baseline_watch,
                            reactivity, 
                            use = "na.or.complete"))
 
@@ -1170,7 +1244,22 @@ ggplot(df.reactivity_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
   labs(y = "Reactivity", x = "Sleep")+
   theme(legend.position = "none")
 
-ggsave("plots/sleep_reactivity_all_measures.png", width = 6, height = 8)
+ggplot(df.reactivity_sleep_corr %>% 
+         filter(reactivity_measure != "Corrugator EMG change"), 
+       aes(sleep, reactivity, color = sleep_measure))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm", se = F)+
+  geom_text(data = tb.reactivity_sleep_corr %>% 
+         filter(reactivity_measure != "Corrugator EMG change"),
+            color = "black",
+            aes(x = rep(c(0.1,4,5),3), y = rep(c(4.1,4,.1), each = 3),
+                label = sprintf("r=%0.2f", correlation)),
+            hjust = 0, vjust = 0)+
+  facet_grid(reactivity_measure ~ sleep_measure , scales = "free")+
+  labs(y = "Reactivity", x = "Sleep")+
+  theme(legend.position = "none")
+
+ggsave("plots/sleep_reactivity_all_measures2.png", width = 6, height = 6)
 ```
 
 

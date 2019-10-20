@@ -867,10 +867,10 @@ p_tst_stability1 <- ggplot(df.er_psg %>% filter(intensity == "high"),
 cor.test((df.er_psg%>% filter(intensity == "high"))$psg_tst, 
          (df.er_psg%>% filter(intensity == "high"))$psqi_sleep_hours)
 
-#read diary data
+#read diary data 
 df.diary <- read_csv(paste("Z:/SBER/SBER1_physio_R56/data/Full_Study/diary_Qualtrics",
                      "/processed/processed_ready_for_analysis/etidata_012919.csv",
-                     sep = "")) %>% 
+                     sep = "")) %>% #old diary data?
   filter(self_tst_min > 0, self_tst_min < 16*60)
 
 df.diary_summary <- df.diary %>% 
