@@ -463,6 +463,42 @@ df.physio_trial_matched <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/se
          task = factor(task, levels = c("watch", "reappraise", "distract")))
 
 ```
+```{r read baseline task EDA}
+# read the baseline eda datafiles
+df.scl_baseline <- read.csv(file = sprintf("%s/SBER_R56_baseline.scl.txt", eda_path),
+                   header = F, sep = "\t") %>% 
+  set_names(c("participant", "task", "trial", "time_segment", "scl")) %>% 
+  mutate(participant = as.character(participant))
+
+#visualize SCL in baseline 1 task
+df.scl_baseline %>% 
+  filter(trial == 1) %>%
+  ggplot(aes(time_segment, scl, group = participant, color = participant))+
+  geom_line(alpha =.3 )+
+  geom_point(alpha = .3)+
+  theme(legend.position = "none")
+  
+  
+df.scl_baseline1 <- df.scl_baseline %>% 
+  filter(trial == 1) %>% 
+  group_by(participant) %>% 
+  summarise(scl_baseline_task = mean(scl))
+
+df.scl_baseline1_ER <- df.physio_trial_matched %>% 
+  group_by(participant) %>% 
+  summarise(scl_er_task = mean(scl)) %>% 
+  left_join(df.scl_baseline1, by = "participant") %>% 
+  mutate(scl_change_bsl_to_er = (scl_er_task - scl_baseline_task))
+
+ggplot(df.scl_baseline1_ER, aes(scl_baseline_task, scl_er_task))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+write_csv(df.scl_baseline1_ER,
+          "Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_data/ier/SCL_baseline_task_to_ER_task.csv")
+```
+
+
 
 ```{r check and filter matched EMG data}
 # plot the distribution of trial_level emg_change

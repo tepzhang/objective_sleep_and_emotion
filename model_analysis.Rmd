@@ -1208,6 +1208,62 @@ ggplot(df.eda_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
 
 
 ```
+
+```{r sleep and baseline_to_ER scl}
+df.scl_sleep_corr <- data.frame(
+  participant = rep(df.all_reactivity$participant, 7),
+  reactivity = c(rep(df.all_reactivity$scl_change_bsl_to_er, 7)),
+  sleep = rep(c(df.all_reactivity$psqi_sd,
+                df.all_reactivity$psqi_ssq,
+                df.all_reactivity$totalsleeptime_diary,
+                df.all_reactivity$subjsleepquality_diary,
+                df.all_reactivity$psg_tst,
+                df.all_reactivity$psg_slp_eff,
+                df.all_reactivity$psg_waso), 1),
+  reactivity_measure = rep(c("BSL-ER SCL change"),
+                           each = 7*nrow(df.all_reactivity)),
+  sleep_measure = rep(rep(c("PSQI slp duration",
+                            "PSQI slp quality", 
+                            "diary slp duartion",
+                            "diary slp quality",
+                            "PSG slp duration",
+                            "PSG slp efficiency",
+                            "PSG WASO"),
+                          each = nrow(df.all_reactivity)), 1)) %>% 
+  mutate(sleep_measure = factor(sleep_measure, 
+                                levels = c("PSQI slp duration",
+                                           "PSQI slp quality", 
+                                           "diary slp duartion",
+                                           "diary slp quality",
+                                           "PSG slp duration",
+                                           "PSG slp efficiency",
+                                           "PSG WASO")))
+
+# generate the correlation table
+tb.scl_sleep_corr <- df.scl_sleep_corr %>% 
+  group_by(reactivity_measure, sleep_measure) %>% 
+  summarise(correlation = cor(sleep,
+                           reactivity, 
+                           use = "na.or.complete"))
+
+
+ggplot(df.scl_sleep_corr, aes(sleep, reactivity, color = sleep_measure))+
+  geom_point(alpha = .5)+
+  geom_smooth(method = "lm")+
+  geom_text(data = tb.scl_sleep_corr,
+            color = "black",
+            aes(x = rep(c(4, 0.1, 350, 2.5, 5, .55, 1), 1), 
+                y = rep(c(2), each = 7),
+                label = sprintf("r=%0.2f", correlation)),
+            hjust = 0, vjust = 0)+
+  facet_grid(reactivity_measure ~ sleep_measure , scales = "free")+
+  labs(y = "SCL change", x = "Sleep")+
+  theme(legend.position = "none")
+
+ggsave("plots/sleep_SCL_change_BSL_to_ER2.png", width = 12, height = 3)
+```
+
+
 ```{r all sleep and reactivity}
 df.reactivity_sleep_corr <- data.frame(
   participant = rep(df.all_reactivity$participant, 56),
