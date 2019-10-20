@@ -779,6 +779,9 @@ df.er_physio_neg_reactivity <- df.er_psg_physio %>%
             srr_baseline_watch = mean(srr_baseline_watch),
             srr_change_pic_watch = mean(srr_change_pic_watch))
 
+GGally::ggpairs(df.er_physio_neg_reactivity %>% 
+                  select(scl_change_pic_watch, sra_change_pic_watch, srr_change_pic_watch))
+
 
 
 ##### scatterplot at the individual level #####
