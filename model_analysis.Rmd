@@ -807,7 +807,7 @@ GGally::ggpairs(df.diary_ind %>%
 
 ```{r construct ind-level data for reactivity analysis}
 df.all_reactivity <- df.er_physio_neg_reactivity %>%
-  left_join(df.er_psg %>% 
+  left_join(df.er_psg_physio %>% 
               filter(intensity == "high") %>% 
               select(participant, age, gender, starts_with("psg_")),
             by = c("participant"))  %>% 

@@ -802,7 +802,8 @@ df.er_psg_physio <- read_csv("Z:/SBER/SBER1_physio_R56/data/Full_Study/session2_
 ```{r individual-level correlation between EDA, EMG, and rating}
 # generate a individual-level behavioral and physio data (averaged across negative pictures)
 df.er_physio_neg_reactivity <- df.er_psg_physio %>% 
-  filter(intensity != 'ntr') %>% 
+  filter(intensity != 'ntr') %>%
+  # filter(intensity %in% c('mid', 'high')) %>% 
   group_by(participant) %>% 
   summarise(watch_val_rating = mean(watch_val_rating),
             watch_arou_rating = mean(watch_arou_rating),
@@ -816,7 +817,9 @@ df.er_physio_neg_reactivity <- df.er_psg_physio %>%
             srr_change_pic_watch = mean(srr_change_pic_watch))
 
 GGally::ggpairs(df.er_physio_neg_reactivity %>% 
-                  select(scl_change_pic_watch, sra_change_pic_watch, srr_change_pic_watch))
+                  select(scl_change_pic_watch, 
+                         sra_change_pic_watch, 
+                         srr_change_pic_watch))
 
 
 
